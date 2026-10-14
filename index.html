@@ -93,6 +93,13 @@
   .card .facts .bid{color:var(--burgundy)}
   .card .facts .pending{color:var(--muted);font-style:italic}
 
+  .card-wrap{position:relative;overflow:hidden;border-radius:var(--radius)}
+  .card-wrap .card{position:relative;z-index:1;transform:translateX(0);transition:transform .18s ease}
+  .card-wrap .card-hide{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 20px;background:linear-gradient(90deg,transparent,rgba(123,0,3,.92));color:#fff;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none}
+
+  .hidden-bar{display:flex;align-items:center;justify-content:space-between;background:#fff3cd;border:1px solid #ffeaa7;border-radius:12px;padding:8px 12px;font-size:13px;color:#856404;box-shadow:var(--shadow)}
+  .hidden-btn{border:1px solid #ffeaa7;background:#fff8e1;color:#856404;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;cursor:pointer}
+
   .results-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 6px 10px;gap:10px}
   .results-head .count{font-weight:800;font-size:15px}
   .results-head .loc{font-size:12px;color:var(--muted);background:#ece7e3;border-radius:999px;padding:4px 10px;font-weight:700}
@@ -167,6 +174,11 @@
     </label>
   </section>
 
+  <div class="hidden-bar" id="hiddenBar" style="display:none; margin:4px 6px 10px;">
+    <span class="hidden-text"><span id="hiddenCount">0</span> hidden</span>
+    <button type="button" id="showHiddenBtn" class="hidden-btn">Show / Clear hidden</button>
+  </div>
+
   <div class="results-head">
     <span class="count" id="resultCount">—</span>
     <span class="loc">Location: Mesa</span>
@@ -196,7 +208,7 @@
   var LS_TERMS  = "nmw.terms.v1";   // legacy flat list, migrated on load
   var LS_CACHE  = "nmw.cache.v1";
   var LS_EXACT  = "nmw.exact.v1";
-  // LS_BIDS removed; bids are always enabled
+  var LS_HIDDEN = "nmw.hidden.v1";
 
   var state = {
     groups: loadGroups(),
@@ -204,6 +216,8 @@
     bids: true,
     bidsLoading: false,
     bidsRun: 0,
+    hidden: loadHidden(),
+    hiddenCount: 0,
     items: [],
     updated: null,
     busy: false,
@@ -218,7 +232,10 @@
     form: document.getElementById("addTermForm"),
     input: document.getElementById("termInput"),
     refresh: document.getElementById("refreshBtn"),
-    exact: document.getElementById("exactToggle")
+    exact: document.getElementById("exactToggle"),
+    hiddenBar: document.getElementById("hiddenBar"),
+    hiddenCount: document.getElementById("hiddenCount"),
+    showHiddenBtn: document.getElementById("showHiddenBtn")
   };
 
   /* ---------- persistence ---------- */
@@ -265,6 +282,27 @@
   }
   function saveExact(){
     try{ localStorage.setItem(LS_EXACT, state.exact ? "1" : "0"); }catch(e){}
+  }
+  function loadHidden(){
+    try{
+      var raw = localStorage.getItem(LS_HIDDEN);
+      if(raw){
+        var obj = JSON.parse(raw);
+        if(obj && typeof obj === "object") return obj;
+      }
+    }catch(e){}
+    return {};
+  }
+  function saveHidden(){
+    try{ localStorage.setItem(LS_HIDDEN, JSON.stringify(state.hidden)); }catch(e){}
+  }
+  function hideItem(id){
+    state.hidden[id] = true;
+    saveHidden();
+    render();
+  }
+  function isHidden(id){
+    return !!state.hidden[id];
   }
   // bids are always enabled now; toggle removed
   function loadCache(){
@@ -522,8 +560,14 @@
       return;
     }
 
-    el.count.textContent = state.items.length === 0 ? "No items" :
-      (state.items.length + (state.items.length === 1 ? " item" : " items"));
+    var visible = state.items.filter(function(it){ return !isHidden(it.objectID); });
+    var hiddenCount = state.items.length - visible.length;
+    if(hiddenCount < 0) hiddenCount = 0;
+    state.hiddenCount = hiddenCount;
+    if(el.hiddenBar){ el.hiddenBar.style.display = hiddenCount > 0 ? "flex" : "none"; }
+    if(el.hiddenCount){ el.hiddenCount.textContent = hiddenCount; }
+    el.count.textContent = visible.length === 0 ? (hiddenCount > 0 ? "All items hidden" : "No items") :
+      (visible.length + (visible.length === 1 ? " item" : " items"));
 
     if(state.error){
       el.grid.innerHTML = '<div class="error">Couldn\'t fetch results.<br><small>' +
@@ -538,7 +582,8 @@
       return;
     }
 
-    el.grid.innerHTML = state.items.map(cardHTML).join("");
+    el.grid.innerHTML = state.items.filter(function(it){ return !isHidden(it.objectID); }).map(cardHTML).join("");
+    attachCardGestures();
     tickCountdowns();
   }
 
@@ -614,7 +659,8 @@
     }
     if(retail != null) facts.push("<span>Est. retail <b>$" + esc(fmtMoney(retail)) + "</b></span>");
 
-    return '<a class="card" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) +
+    return '<div class="card-wrap" data-id="' + esc(id) + '">' +
+      '<a class="card" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) +
       '" target="_blank" rel="noopener">' +
       '<div class="thumb">' + (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="">' : "") + "</div>" +
       '<div class="body">' +
@@ -623,7 +669,7 @@
         (facts.length ? '<div class="facts">' + facts.join("") + "</div>" : "") +
         (event ? '<div class="event">' + esc(event) + "</div>" : "") +
         '<div class="closes" data-close="' + closeTs + '"><span class="dot"></span><span class="closes-text"></span></div>' +
-      "</div></a>";
+      "</div></a><div class=\"card-hide\">Swipe left to hide</div></div>";
   }
 
   function tickCountdowns(){
@@ -667,6 +713,52 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  /* ---------- card swipe to hide ---------- */
+  function attachCardGestures(){
+    Array.prototype.forEach.call(document.querySelectorAll(".card-wrap"), function(w){
+      var card = w.querySelector(".card");
+      if(!card) return;
+      var id = w.getAttribute("data-id");
+      var startX = 0, startY = 0, curX = 0, isTouch = false, dragging = false;
+      function reset(){
+        card.style.transition = "transform .18s ease";
+        card.style.transform = "";
+        dragging = false;
+      }
+      w.addEventListener("touchstart", function(ev){
+        var t = ev.changedTouches[0];
+        isTouch = true; dragging = true;
+        startX = t.screenX || t.clientX; startY = t.screenY || t.clientY;
+        curX = 0;
+        card.style.transition = "none";
+      }, {passive: true});
+      w.addEventListener("touchmove", function(ev){
+        if(!dragging) return;
+        var t = ev.changedTouches[0];
+        var x = (t.screenX || t.clientX) - startX;
+        var y = (t.screenY || t.clientY) - startY;
+        if(Math.abs(x) > Math.abs(y) * 1.2){
+          ev.preventDefault();
+          curX = x;
+          if(curX < 0) card.style.transform = "translateX(" + curX + "px)";
+        }
+      }, {passive: false});
+      w.addEventListener("touchend", function(){
+        if(!dragging) return;
+        var threshold = -80;
+        if(curX < threshold && id){
+          card.style.transition = "transform .15s ease";
+          card.style.transform = "translateX(-120%)";
+          setTimeout(function(){ hideItem(id); }, 140);
+        } else {
+          reset();
+        }
+        dragging = false;
+      });
+      w.addEventListener("touchcancel", reset);
+    });
+  }
+
   /* ---------- events ---------- */
   el.refresh.addEventListener("click", refresh);
   el.exact.addEventListener("change", function(){
@@ -674,6 +766,14 @@
     saveExact();
     refresh();
   });
+  if(el.showHiddenBtn){
+    el.showHiddenBtn.addEventListener("click", function(){
+      state.hidden = {};
+      state.hiddenCount = 0;
+      saveHidden();
+      render();
+    });
+  }
   el.form.addEventListener("submit", function(e){
     e.preventDefault();
     var raw = el.input.value.trim();
