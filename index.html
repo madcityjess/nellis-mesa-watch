@@ -177,9 +177,16 @@
       <h1>Nellis Mesa Watch</h1>
       <div class="sub"><span class="pin">📍</span> Mesa location · <span id="lastUpdated">never updated</span></div>
     </div>
-    <button class="refresh" id="refreshBtn" aria-label="Refresh results">
-      <span class="refresh-ico">↻</span><span class="spinner"></span><span>Refresh</span>
-    </button>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select id="profileSelect" aria-label="Switch profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--card);color:var(--text)">
+        <option value="default">Default</option>
+        <option value="work">Work</option>
+        <option value="personal">Personal</option>
+      </select>
+      <button class="refresh" id="refreshBtn" aria-label="Refresh results">
+        <span class="refresh-ico">↻</span><span class="spinner"></span><span>Refresh</span>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -228,11 +235,39 @@
     hitsPerPage: 50
   };
 
-  var LS_GROUPS = "nmw.groups.v1";
-  var LS_TERMS  = "nmw.terms.v1";   // legacy flat list, migrated on load
-  var LS_CACHE  = "nmw.cache.v1";
-  var LS_EXACT  = "nmw.exact.v1";
-  var LS_HIDDEN = "nmw.hidden.v1";
+  var PROFILE_KEY = "nmw.profile";
+  var DEFAULT_PROFILE = "default";
+
+  function getProfile(){
+    try {
+      var p = localStorage.getItem(PROFILE_KEY);
+      if (p && p.trim()) return p.trim();
+    } catch(e){}
+    return DEFAULT_PROFILE;
+  }
+  function setProfile(p){
+    var np = (p && p.trim()) ? p.trim() : DEFAULT_PROFILE;
+    try { localStorage.setItem(PROFILE_KEY, np); } catch(e){}
+    return np;
+  }
+
+  function keysFor(p){
+    var pref = p || getProfile();
+    return {
+      groups: "nmw.groups.v1." + pref,
+      terms:  "nmw.terms.v1." + pref,   // legacy
+      cache:  "nmw.cache.v1." + pref,
+      exact:  "nmw.exact.v1." + pref,
+      hidden: "nmw.hidden.v1." + pref
+    };
+  }
+
+  var k = keysFor(getProfile());
+  var LS_GROUPS = k.groups;
+  var LS_TERMS  = k.terms;
+  var LS_CACHE  = k.cache;
+  var LS_EXACT  = k.exact;
+  var LS_HIDDEN = k.hidden;
 
   var state = {
     groups: loadGroups(),
@@ -346,7 +381,7 @@
   function hideItem(id){
     var it = findItemById(id);
     var closeTs = it ? Number(it["Date Closed"]) || 0 : 0;
-    state.hidden[id] = { closeTs: closeTs, hiddenAt: Date.now() / 1000 };
+    state.hidden[id] = { closeTs: closeTs, hiddenAt: Math.floor(Date.now() / 1000) };
     saveHidden();
     render();
   }
@@ -1111,6 +1146,32 @@
 
   /* ---------- boot ---------- */
   el.exact.checked = state.exact;
+  // Profile switch
+  var ps = document.getElementById("profileSelect");
+  if(ps){
+    ps.value = getProfile();
+    ps.addEventListener("change", function(){
+      var np = setProfile(ps.value);
+      // re-key storage and reload
+      k = keysFor(np);
+      LS_GROUPS = k.groups; LS_TERMS = k.terms; LS_CACHE = k.cache; LS_EXACT = k.exact; LS_HIDDEN = k.hidden;
+      state.groups = loadGroups();
+      state.exact = loadExact();
+      state.hidden = loadHidden();
+      state.items = [];
+      state.updated = null;
+      el.exact.checked = state.exact;
+      var cached = loadCache();
+      if(cached){
+        state.items = cached.items || [];
+        state.updated = cached.updated || null;
+      }
+      renderChips();
+      render();
+      refresh();
+    });
+  }
+
   var cached = loadCache();
   if(cached){
     state.items = cached.items || [];
