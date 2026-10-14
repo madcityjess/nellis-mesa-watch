@@ -98,6 +98,7 @@
   .card-wrap .swipe-bg{position:absolute;inset:0;z-index:1;display:flex;align-items:center;color:#fff;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.05em;user-select:none}
   .card-wrap[data-mode="hide"] .swipe-bg{justify-content:flex-end;padding-right:20px;background:linear-gradient(90deg,transparent 30%,var(--burgundy))}
   .card-wrap[data-mode="unhide"] .swipe-bg{justify-content:flex-start;padding-left:20px;background:linear-gradient(270deg,transparent 30%,#1f7a44)}
+  .card-wrap[data-mode="undo"] .swipe-bg{justify-content:flex-start;padding-left:20px;background:linear-gradient(270deg,transparent 30%,#14532d)}
   .hover-zone{position:absolute;top:0;bottom:0;width:108px;z-index:3;display:flex;align-items:center;opacity:0;transition:opacity .18s ease;pointer-events:none}
   .hover-zone.zone-left{left:0;justify-content:flex-start;padding-left:10px}
   .hover-zone.zone-right{right:0;justify-content:flex-end;padding-right:10px}
@@ -108,10 +109,14 @@
     .hover-zone.zone-right:hover{opacity:1;background:linear-gradient(270deg,var(--burgundy),transparent)}
     .card-wrap[data-mode="unhide"] .hover-zone.zone-right:hover{background:linear-gradient(270deg,#1f7a44,transparent)}
   }
-  .undo-ghost{position:relative;z-index:2;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;background:rgba(255,255,255,.94);border:1px dashed #b9c9e6;border-radius:var(--radius);color:#33456b;font-size:13px;font-weight:600;text-align:center;transform:translateX(0);transition:transform .3s ease, opacity .3s ease;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .undo-ghost{position:relative;z-index:2;height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(255,255,255,.94);border:1px dashed #b9c9e6;border-radius:var(--radius);color:#33456b;font-size:13px;font-weight:600;text-align:center;transform:translateX(0);transition:transform .3s ease, opacity .3s ease;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .undo-ghost .undo-label{opacity:.85}
-  .undo-inline{border:1px solid #9db4dc;background:#fff;color:#33456b;border-radius:8px;padding:7px 16px;font-weight:800;font-size:12px;cursor:pointer}
+  .undo-inline{display:none;border:1px solid #9db4dc;background:#fff;color:#33456b;border-radius:8px;padding:7px 16px;font-weight:800;font-size:12px;cursor:pointer}
   .undo-inline:active{background:#e7eefb}
+  /* Undo button is for mouse users only; pin it to the right edge where the Hide pill was. */
+  @media (hover:hover){
+    .undo-ghost .undo-inline{display:inline-block;position:absolute;right:10px;top:50%;transform:translateY(-50%)}
+  }
   @keyframes cardIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
   .card-wrap.restored{animation:cardIn .28s ease}
 
@@ -823,10 +828,10 @@
       card.style.opacity = "0";
     }
     setTimeout(function(){
-      // Swap in a same-height ghost; undo by swiping it right (green, like the Hidden tab).
+      // Swap in a same-height ghost; undo by swiping it right (deeper green, like the Hidden tab).
       w._ghostActive = true;
-      w.setAttribute("data-mode", "unhide");
-      w.innerHTML = '<div class="swipe-bg">Restore ↺</div>' +
+      w.setAttribute("data-mode", "undo");
+      w.innerHTML = '<div class="swipe-bg">Undo ↺</div>' +
         '<div class="undo-ghost"><span class="undo-label">Item hidden</span>' +
         '<button type="button" class="undo-inline">Undo</button></div>';
       w.style.height = h + "px";
@@ -898,9 +903,10 @@
       scheduleGhostFade(w);
     });
 
-    // Tap/click the ghost (e.g. with a mouse) also undoes.
+    // Mouse users can click the ghost (or its Undo pill); on touch, undo is swipe-only.
     ghost.addEventListener("click", function(ev){
       ev.preventDefault(); ev.stopPropagation();
+      if(window.matchMedia && !window.matchMedia("(hover:hover)").matches) return;
       undoHide(w, id);
     });
   }
