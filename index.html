@@ -177,16 +177,9 @@
       <h1>Nellis Mesa Watch</h1>
       <div class="sub"><span class="pin">📍</span> Mesa location · <span id="lastUpdated">never updated</span></div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <select id="profileSelect" aria-label="Switch profile" style="border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--card);color:var(--text)">
-        <option value="default">Default</option>
-        <option value="work">Work</option>
-        <option value="personal">Personal</option>
-      </select>
-      <button class="refresh" id="refreshBtn" aria-label="Refresh results">
-        <span class="refresh-ico">↻</span><span class="spinner"></span><span>Refresh</span>
-      </button>
-    </div>
+    <button class="refresh" id="refreshBtn" aria-label="Refresh results">
+      <span class="refresh-ico">↻</span><span class="spinner"></span><span>Refresh</span>
+    </button>
   </div>
 </header>
 
@@ -235,34 +228,32 @@
     hitsPerPage: 50
   };
 
-  var PROFILE_KEY = "nmw.profile";
-  var DEFAULT_PROFILE = "default";
-
-  function getProfile(){
+  var DEVICE_ID_KEY = "nmw.device.id";
+  function getDeviceId(){
     try {
-      var p = localStorage.getItem(PROFILE_KEY);
-      if (p && p.trim()) return p.trim();
-    } catch(e){}
-    return DEFAULT_PROFILE;
+      var d = localStorage.getItem(DEVICE_ID_KEY);
+      if (d && d.trim()) return d.trim();
+      var gen = "d-" + Math.random().toString(36).slice(2, 10) + "-" + Date.now().toString(36);
+      localStorage.setItem(DEVICE_ID_KEY, gen);
+      return gen;
+    } catch(e){
+      return "unknown";
+    }
   }
-  function setProfile(p){
-    var np = (p && p.trim()) ? p.trim() : DEFAULT_PROFILE;
-    try { localStorage.setItem(PROFILE_KEY, np); } catch(e){}
-    return np;
-  }
+  var deviceId = getDeviceId();
 
-  function keysFor(p){
-    var pref = p || getProfile();
+  function keysForDevice(d){
+    var id = d || deviceId;
     return {
-      groups: "nmw.groups.v1." + pref,
-      terms:  "nmw.terms.v1." + pref,   // legacy
-      cache:  "nmw.cache.v1." + pref,
-      exact:  "nmw.exact.v1." + pref,
-      hidden: "nmw.hidden.v1." + pref
+      groups: "nmw.groups.v1." + id,
+      terms:  "nmw.terms.v1." + id,   // legacy
+      cache:  "nmw.cache.v1." + id,
+      exact:  "nmw.exact.v1." + id,
+      hidden: "nmw.hidden.v1." + id
     };
   }
 
-  var k = keysFor(getProfile());
+  var k = keysForDevice(deviceId);
   var LS_GROUPS = k.groups;
   var LS_TERMS  = k.terms;
   var LS_CACHE  = k.cache;
@@ -1146,31 +1137,7 @@
 
   /* ---------- boot ---------- */
   el.exact.checked = state.exact;
-  // Profile switch
-  var ps = document.getElementById("profileSelect");
-  if(ps){
-    ps.value = getProfile();
-    ps.addEventListener("change", function(){
-      var np = setProfile(ps.value);
-      // re-key storage and reload
-      k = keysFor(np);
-      LS_GROUPS = k.groups; LS_TERMS = k.terms; LS_CACHE = k.cache; LS_EXACT = k.exact; LS_HIDDEN = k.hidden;
-      state.groups = loadGroups();
-      state.exact = loadExact();
-      state.hidden = loadHidden();
-      state.items = [];
-      state.updated = null;
-      el.exact.checked = state.exact;
-      var cached = loadCache();
-      if(cached){
-        state.items = cached.items || [];
-        state.updated = cached.updated || null;
-      }
-      renderChips();
-      render();
-      refresh();
-    });
-  }
+  // Device-scoped storage; no UI switch needed (each device/browser gets its own keys).
 
   var cached = loadCache();
   if(cached){
