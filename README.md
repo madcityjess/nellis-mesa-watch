@@ -46,6 +46,9 @@ Everything works, but you won't get the "install as app" behaviour and updates r
 
 - **Refresh** button re-queries live.
 - **Search terms** box: add/remove terms (e.g. `Milwaukee`, `Raspberry Pi`). Saved on the phone.
+- **Exact matches only** (on by default): a term must appear as a real word in the item's
+  title or brand. Turn it off to search exactly like the Nellis site (which uses fuzzy/typo matching,
+  so `lathe` also returns *leather* items).
 - **Location** is fixed to `Mesa` (change `CONFIG.location` in `index.html` for another location such as `Phoenix`, `SW Las Vegas`, `Katy`, `Dallas`, `Denver`).
 
 ## How it works (for the curious)

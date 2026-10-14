@@ -82,6 +82,9 @@
     border:0;border-radius:10px;background:var(--red);color:#fff;font-weight:800;padding:0 16px;
   }
   .addterm button:active{background:var(--red-light)}
+  .exact{display:flex;align-items:flex-start;gap:9px;margin-top:13px;font-size:13px;color:var(--ink);cursor:pointer;line-height:1.35}
+  .exact input{width:18px;height:18px;margin-top:2px;accent-color:var(--red);flex:none}
+  .exact em{color:var(--muted);font-style:normal;font-size:12px}
 
   .results-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 6px 10px;gap:10px}
   .results-head .count{font-weight:800;font-size:15px}
@@ -150,6 +153,10 @@
       <input id="termInput" type="text" placeholder="Add a term (e.g. Milwaukee)" autocomplete="off" autocapitalize="words" enterkeyhint="done">
       <button type="submit">Add</button>
     </form>
+    <label class="exact">
+      <input type="checkbox" id="exactToggle">
+      <span><b>Exact matches only</b><br><em>Hides fuzzy results (e.g. “leather” for “lathe”). Turn off to search like the Nellis site does.</em></span>
+    </label>
   </section>
 
   <div class="results-head">
@@ -176,9 +183,11 @@
 
   var LS_TERMS = "nmw.terms.v1";
   var LS_CACHE = "nmw.cache.v1";
+  var LS_EXACT = "nmw.exact.v1";
 
   var state = {
     terms: loadTerms(),
+    exact: loadExact(),
     items: [],
     updated: null,
     busy: false,
@@ -192,7 +201,8 @@
     chips: document.getElementById("termChips"),
     form: document.getElementById("addTermForm"),
     input: document.getElementById("termInput"),
-    refresh: document.getElementById("refreshBtn")
+    refresh: document.getElementById("refreshBtn"),
+    exact: document.getElementById("exactToggle")
   };
 
   /* ---------- persistence ---------- */
@@ -208,6 +218,16 @@
   }
   function saveTerms(){
     try{ localStorage.setItem(LS_TERMS, JSON.stringify(state.terms)); }catch(e){}
+  }
+  function loadExact(){
+    try{
+      var v = localStorage.getItem(LS_EXACT);
+      if(v !== null) return v === "1";
+    }catch(e){}
+    return true;
+  }
+  function saveExact(){
+    try{ localStorage.setItem(LS_EXACT, state.exact ? "1" : "0"); }catch(e){}
   }
   function loadCache(){
     try{
@@ -237,6 +257,8 @@
         "Auction Event Name","Date Closed","Item Condition","Location Name"
       ]
     };
+    // Exact mode: stop Algolia's typo tolerance so "lathe" won't match "leather".
+    if(state.exact){ body.typoTolerance = false; }
     return fetch("https://" + creds.appId + "-dsn.algolia.net/1/indexes/" + creds.index + "/query", {
       method: "POST",
       headers: {
@@ -253,11 +275,27 @@
       }
       return res.json();
     }).then(function(data){
-      return (data.hits || []).map(function(h){
+      var hits = (data.hits || []);
+      if(state.exact){
+        hits = hits.filter(function(h){ return isExactMatch(h, term); });
+      }
+      return hits.map(function(h){
         return Object.assign({}, h, { _term: term });
       });
     });
   }
+
+  // Whole-word match (plus simple plurals) against the item title or brand.
+  function isExactMatch(item, term){
+    var hay = ((item["Lead Description"] || "") + " " + (item["Brand"] || "")).toLowerCase();
+    var toks = String(term).trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if(!toks.length) return true;
+    return toks.every(function(tok){
+      var re = new RegExp("(^|[^a-z0-9])" + escRe(tok) + "(s|es)?([^a-z0-9]|$)");
+      return re.test(hay);
+    });
+  }
+  function escRe(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
   // If the public key ever rotates, recover current credentials from the site HTML
   // via a public CORS proxy.
@@ -454,6 +492,11 @@
 
   /* ---------- events ---------- */
   el.refresh.addEventListener("click", refresh);
+  el.exact.addEventListener("change", function(){
+    state.exact = el.exact.checked;
+    saveExact();
+    refresh();
+  });
   el.form.addEventListener("submit", function(e){
     e.preventDefault();
     var v = el.input.value.trim();
@@ -466,6 +509,7 @@
   });
 
   /* ---------- boot ---------- */
+  el.exact.checked = state.exact;
   var cached = loadCache();
   if(cached){
     state.items = cached.items || [];
