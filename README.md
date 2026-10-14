@@ -56,7 +56,10 @@ Everything works, but you won't get the "install as app" behaviour and updates r
 - **Location** is fixed to `Mesa` (change `CONFIG.location` in `index.html` for another location such as `Phoenix`, `SW Las Vegas`, `Katy`, `Dallas`, `Denver`).
 - **Hiding items you don't care about:** on a phone, **swipe a card left** to hide it. On a PC, hovering the
   left side of a card shows **Open ↗** and the right side shows **Hide ✕** (only the pill hides; clicking
-  anywhere else opens the item). A hidden card is replaced in place by an **Undo** row for a few seconds.
+  anywhere else opens the item). The hidden card's spot becomes a dashed **Item hidden** placeholder that
+  keeps the card's exact size, so nothing else moves. **Swipe it right** (green **Restore ↺**) or tap it to
+  undo. It clears itself after a few seconds, as soon as you scroll, or when you hide another item — and it
+  fades/coils shut smoothly rather than snapping.
 - **Visible / Hidden tabs** at the top switch between your working list and the items you've hidden
   (saved on the phone). In the **Hidden** tab, **swipe right** (or click the **Unhide ↺** pill) to bring an
   item back. There's no global "show all" button — items leave the Hidden tab the same way they went in.

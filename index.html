@@ -108,8 +108,9 @@
     .hover-zone.zone-right:hover{opacity:1;background:linear-gradient(270deg,var(--burgundy),transparent)}
     .card-wrap[data-mode="unhide"] .hover-zone.zone-right:hover{background:linear-gradient(270deg,#1f7a44,transparent)}
   }
-  .undo-row{display:flex;align-items:center;justify-content:space-between;gap:10px;height:100%;padding:0 14px;background:#eef4ff;border:1px dashed #b9c9e6;border-radius:var(--radius);color:#33456b;font-size:13px;font-weight:600;box-sizing:border-box}
-  .undo-inline{border:1px solid #9db4dc;background:#fff;color:#33456b;border-radius:8px;padding:7px 14px;font-weight:800;font-size:12px;cursor:pointer}
+  .undo-ghost{position:relative;z-index:2;height:100%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;background:rgba(255,255,255,.94);border:1px dashed #b9c9e6;border-radius:var(--radius);color:#33456b;font-size:13px;font-weight:600;text-align:center;transform:translateX(0);transition:transform .3s ease, opacity .3s ease;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .undo-ghost .undo-label{opacity:.85}
+  .undo-inline{border:1px solid #9db4dc;background:#fff;color:#33456b;border-radius:8px;padding:7px 16px;font-weight:800;font-size:12px;cursor:pointer}
   .undo-inline:active{background:#e7eefb}
   @keyframes cardIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
   .card-wrap.restored{animation:cardIn .28s ease}
@@ -773,51 +774,144 @@
   }
 
   /* ---------- card hide/unhide ---------- */
-  var UNDO_MS = 6500;
+  var UNDO_MS = 3000; // touch devices
+  function undoDelay(){
+    return (window.matchMedia && window.matchMedia("(hover:hover)").matches) ? 5000 : UNDO_MS;
+  }
 
-  function finalizeHide(w){
-    if(w._t){ clearTimeout(w._t); w._t = null; }
-    w.style.transition = "height .32s ease, opacity .32s ease";
+  function clearGhostTimer(w){
+    if(w && w._ghostTimer){ clearTimeout(w._ghostTimer); w._ghostTimer = null; }
+  }
+  function scheduleGhostFade(w){
+    clearGhostTimer(w);
+    if(!w) return;
+    w._ghostTimer = setTimeout(function(){ fadeGhost(w); }, undoDelay());
+  }
+
+  function fadeGhost(w){
+    if(!w || w._fading) return;
+    w._fading = true;
+    clearGhostTimer(w);
+    w.style.transition = "height .5s ease, opacity .5s ease, margin-bottom .5s ease";
     w.style.height = "0px";
     w.style.opacity = "0";
-    setTimeout(function(){ render(); }, 340);
+    w.style.marginBottom = "-12px"; // eat the grid gap so the collapse has no snap
+    setTimeout(function(){ if(w.parentNode) w.parentNode.removeChild(w); }, 540);
+  }
+
+  function fadeOtherGhosts(exceptW){
+    Array.prototype.forEach.call(document.querySelectorAll(".card-wrap .undo-ghost"), function(g){
+      var w = g.closest(".card-wrap");
+      if(w && w !== exceptW) fadeGhost(w);
+    });
   }
 
   function animateHide(w, id){
     if(!w || !id) return;
     w._suppressClick = true;
-    if(w._t) clearTimeout(w._t);
+    fadeOtherGhosts(w);          // hiding again dismisses any previous ghost
+    clearGhostTimer(w);
     state.hidden[id] = true;
     saveHidden();
     updateCounts();
     var card = w.querySelector(".card");
     var h = w.offsetHeight;
-    w.style.height = h + "px";
+    w.style.height = h + "px";   // lock the slot so nothing below shifts
     if(card){
       card.style.transition = "transform .3s ease, opacity .3s ease";
       card.style.transform = "translateX(-112%)";
       card.style.opacity = "0";
     }
     setTimeout(function(){
-      // Replace the card with an inline Undo row that occupies the same slot.
-      w.innerHTML = '<div class="undo-row"><span>Item hidden</span><button type="button" class="undo-inline">Undo</button></div>';
-      w.style.transition = "none";
+      // Swap in a same-height ghost; undo by swiping it right (green, like the Hidden tab).
+      w._ghostActive = true;
+      w.setAttribute("data-mode", "unhide");
+      w.innerHTML = '<div class="swipe-bg">Restore ↺</div>' +
+        '<div class="undo-ghost"><span class="undo-label">Item hidden</span>' +
+        '<button type="button" class="undo-inline">Undo</button></div>';
       w.style.height = h + "px";
-      void w.offsetHeight; // reflow so the height change below animates
-      w.style.transition = "height .3s ease, opacity .3s ease";
-      w.style.height = "54px";
-      var btn = w.querySelector(".undo-inline");
-      if(btn) btn.addEventListener("click", function(){ undoHide(id); });
-      w._t = setTimeout(function(){ finalizeHide(w); }, UNDO_MS);
+      w._fading = false; w._ghostDone = false; w._ghostDragging = false;
+      bindGhostGesture(w, id);
+      scheduleGhostFade(w);
     }, 300);
   }
 
-  function undoHide(id){
+  function undoHide(w, id){
+    if(w && w._ghostDone) return;
+    if(w) w._ghostDone = true;
+    clearGhostTimer(w);
     delete state.hidden[id];
     saveHidden();
-    state._restoreId = id;
-    render();
+    state._restoreId = id;       // render() fades the card back into the same slot
+    var g = w ? w.querySelector(".undo-ghost") : null;
+    if(g){
+      g.style.transition = "transform .28s ease, opacity .28s ease";
+      g.style.transform = "translateX(112%)";
+      g.style.opacity = "0";
+    }
+    setTimeout(function(){ render(); }, 250);
   }
+
+  function bindGhostGesture(w, id){
+    var ghost = w.querySelector(".undo-ghost");
+    if(!ghost) return;
+    var startX = 0, startY = 0, curX = 0, dragging = false, decided = false;
+
+    ghost.addEventListener("touchstart", function(ev){
+      if(ev.touches.length > 1) return;
+      clearGhostTimer(w);        // pause auto-dismiss while touching
+      var t = ev.changedTouches[0];
+      dragging = true; decided = false;
+      startX = t.clientX; startY = t.clientY; curX = 0;
+      w._ghostDragging = true;
+      ghost.style.transition = "none";
+    }, {passive: true});
+
+    ghost.addEventListener("touchmove", function(ev){
+      if(!dragging) return;
+      var t = ev.changedTouches[0];
+      var x = t.clientX - startX, y = t.clientY - startY;
+      if(!decided){
+        if(Math.abs(x) < 8 && Math.abs(y) < 8) return;
+        if(Math.abs(x) > Math.abs(y) * 1.2){ decided = true; }
+        else { dragging = false; ghost.style.transition = "transform .2s ease"; ghost.style.transform = ""; return; }
+      }
+      ev.preventDefault();
+      curX = Math.max(0, x);     // undo is swipe-right only
+      ghost.style.transform = "translateX(" + curX + "px)";
+    }, {passive: false});
+
+    ghost.addEventListener("touchend", function(){
+      if(!dragging) return;
+      dragging = false; w._ghostDragging = false;
+      if(curX > 72){ undoHide(w, id); }
+      else {
+        if(Math.abs(curX) > 6) w._ghostDone = true; // a cancelled drag shouldn't click-undo
+        ghost.style.transition = "transform .24s ease";
+        ghost.style.transform = "";
+        scheduleGhostFade(w);
+      }
+    });
+    ghost.addEventListener("touchcancel", function(){
+      dragging = false; w._ghostDragging = false;
+      ghost.style.transition = "transform .2s ease"; ghost.style.transform = "";
+      scheduleGhostFade(w);
+    });
+
+    // Tap/click the ghost (e.g. with a mouse) also undoes.
+    ghost.addEventListener("click", function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      undoHide(w, id);
+    });
+  }
+
+  // Any real scroll dismisses ghosts (they were only there for a quick undo).
+  window.addEventListener("scroll", function(){
+    Array.prototype.forEach.call(document.querySelectorAll(".card-wrap .undo-ghost"), function(g){
+      var w = g.closest(".card-wrap");
+      if(w && !w._fading && !w._ghostDragging) fadeGhost(w);
+    });
+  }, {passive: true});
 
   function animateUnhide(w, id){
     if(!w || !id) return;
@@ -852,6 +946,7 @@
       }
 
       w.addEventListener("touchstart", function(ev){
+        if(w._ghostActive) return;
         if(ev.touches.length > 1) return;
         var t = ev.changedTouches[0];
         dragging = true; decided = false;
@@ -860,6 +955,7 @@
       }, {passive: true});
 
       w.addEventListener("touchmove", function(ev){
+        if(w._ghostActive) return;
         if(!dragging) return;
         var t = ev.changedTouches[0];
         var x = t.clientX - startX, y = t.clientY - startY;
@@ -875,6 +971,7 @@
       }, {passive: false});
 
       w.addEventListener("touchend", function(){
+        if(w._ghostActive) return;
         if(!dragging) return;
         dragging = false;
         var threshold = 72;
@@ -889,7 +986,7 @@
           reset();
         }
       });
-      w.addEventListener("touchcancel", function(){ if(dragging) reset(); });
+      w.addEventListener("touchcancel", function(){ if(w._ghostActive) return; if(dragging) reset(); });
 
       // Suppress the link click that follows a swipe.
       card.addEventListener("click", function(ev){
