@@ -54,6 +54,12 @@ Everything works, but you won't get the "install as app" behaviour and updates r
   title or brand. Turn it off to search exactly like the Nellis site (which uses fuzzy/typo matching,
   so `lathe` also returns *leather* items).
 - **Location** is fixed to `Mesa` (change `CONFIG.location` in `index.html` for another location such as `Phoenix`, `SW Las Vegas`, `Katy`, `Dallas`, `Denver`).
+- **Hiding items you don't care about:** on a phone, **swipe a card left** to hide it. On a PC, hovering the
+  left side of a card shows **Open ↗** and the right side shows **Hide ✕** (only the pill hides; clicking
+  anywhere else opens the item). A hidden card is replaced in place by an **Undo** row for a few seconds.
+- **Visible / Hidden tabs** at the top switch between your working list and the items you've hidden
+  (saved on the phone). In the **Hidden** tab, **swipe right** (or click the **Unhide ↺** pill) to bring an
+  item back. There's no global "show all" button — items leave the Hidden tab the same way they went in.
 
 ## How it works (for the curious)
 
