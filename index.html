@@ -93,26 +93,30 @@
   .card .facts .bid{color:var(--burgundy)}
   .card .facts .pending{color:var(--muted);font-style:italic}
 
-  .card-wrap{position:relative;overflow:hidden;border-radius:var(--radius)}
-  .card-wrap .card{position:relative;z-index:1;transform:translateX(0);transition:transform .18s ease}
-  .card-wrap{position:relative;overflow:hidden;border-radius:var(--radius)}
-  .card-wrap .card{position:relative;z-index:1;transform:translateX(0);transition:transform .18s ease}
-  .card-wrap .card-hide{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 20px;background:linear-gradient(90deg,transparent,rgba(123,0,3,.92));color:#fff;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;user-select:none}
-  .card-wrap .card-hide .hide-text{pointer-events:auto;display:flex;align-items:center;justify-content:center;height:100%;padding:0 20px;cursor:pointer;-webkit-tap-highlight-color:transparent}
-  .card-wrap .card-hide .hide-text:active{opacity:.9}
-  .card-hide-backdrop{position:absolute;left:0;top:0;bottom:0;width:70px;pointer-events:auto;cursor:pointer;display:flex;align-items:center;justify-content:flex-start;padding-left:6px;z-index:2}
-  .card-hide-backdrop .open-hint{color:#fff;font-size:11px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6);background:rgba(0,0,0,.45);border-radius:8px;padding:4px 6px;display:none}
-  @media (hover:hover){ .card-hide-backdrop:hover .open-hint{display:block} }
-  .card-hidden .card{transform:none}
-  .card-hidden .card-actions{position:absolute;right:0;top:0;bottom:0;display:flex;flex-direction:column;gap:8px;justify-content:center;padding-right:12px;z-index:2}
-  .unhide-btn, .open-btn{border:1px solid rgba(255,255,255,.9);background:rgba(123,0,3,.85);color:#fff;border-radius:8px;padding:8px 10px;font-weight:800;font-size:12px;cursor:pointer;text-decoration:none}
-  .open-btn{background:rgba(0,0,0,.7)}
+  .card-wrap{position:relative;overflow:hidden;border-radius:var(--radius);transition:height .3s ease, opacity .3s ease}
+  .card-wrap .card{position:relative;z-index:2;transform:translateX(0);transition:transform .3s ease, opacity .3s ease;background:var(--card)}
+  .card-wrap .swipe-bg{position:absolute;inset:0;z-index:1;display:flex;align-items:center;color:#fff;font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:.05em;user-select:none}
+  .card-wrap[data-mode="hide"] .swipe-bg{justify-content:flex-end;padding-right:20px;background:linear-gradient(90deg,transparent 30%,var(--burgundy))}
+  .card-wrap[data-mode="unhide"] .swipe-bg{justify-content:flex-start;padding-left:20px;background:linear-gradient(270deg,transparent 30%,#1f7a44)}
+  .hover-zone{position:absolute;top:0;bottom:0;width:108px;z-index:3;display:flex;align-items:center;opacity:0;transition:opacity .18s ease;pointer-events:none}
+  .hover-zone.zone-left{left:0;justify-content:flex-start;padding-left:10px}
+  .hover-zone.zone-right{right:0;justify-content:flex-end;padding-right:10px}
+  .pill{color:#fff;font-size:12px;font-weight:800;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.5);border-radius:999px;padding:7px 12px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+  @media (hover:hover){
+    .hover-zone{pointer-events:auto;cursor:pointer}
+    .hover-zone.zone-left:hover{opacity:1;background:linear-gradient(90deg,rgba(0,0,0,.5),transparent)}
+    .hover-zone.zone-right:hover{opacity:1;background:linear-gradient(270deg,var(--burgundy),transparent)}
+    .card-wrap[data-mode="unhide"] .hover-zone.zone-right:hover{background:linear-gradient(270deg,#1f7a44,transparent)}
+  }
+  .undo-row{display:flex;align-items:center;justify-content:space-between;gap:10px;height:100%;padding:0 14px;background:#eef4ff;border:1px dashed #b9c9e6;border-radius:var(--radius);color:#33456b;font-size:13px;font-weight:600;box-sizing:border-box}
+  .undo-inline{border:1px solid #9db4dc;background:#fff;color:#33456b;border-radius:8px;padding:7px 14px;font-weight:800;font-size:12px;cursor:pointer}
+  .undo-inline:active{background:#e7eefb}
+  @keyframes cardIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  .card-wrap.restored{animation:cardIn .28s ease}
 
   .view-tabs{display:flex;gap:6px;margin:4px 6px 10px;background:#f3f1ee;border:1px solid var(--line);border-radius:12px;padding:4px}
   .view-tab{flex:1;border:0;background:transparent;border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
   .view-tab.active{background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.05);color:var(--ink)}
-  .undo-bar{display:flex;align-items:center;justify-content:space-between;background:#e7f5ec;border:1px solid #c9e6d6;border-radius:12px;padding:8px 12px;font-size:13px;color:var(--ok);box-shadow:var(--shadow)}
-  .undo-btn{border:1px solid #c9e6d6;background:#fff;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;color:var(--ok);cursor:pointer}
 
   .results-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 6px 10px;gap:10px}
   .results-head .count{font-weight:800;font-size:15px}
@@ -198,11 +202,6 @@
     <span class="loc">Location: Mesa</span>
   </div>
 
-  <div id="undoBar" class="undo-bar" style="display:none; margin:4px 6px 10px;">
-    <span>Item hidden</span>
-    <button type="button" id="undoBtn" class="undo-btn">Undo</button>
-  </div>
-
   <div class="grid" id="grid"></div>
   <div class="hint">Tap any item to open it on nellisauction.com. Results are fetched live each time you refresh.</div>
 </main>
@@ -256,9 +255,7 @@
     exact: document.getElementById("exactToggle"),
     viewTabs: document.getElementById("viewTabs"),
     visCount: document.getElementById("visCount"),
-    hidCountTab: document.getElementById("hidCountTab"),
-    undoBar: document.getElementById("undoBar"),
-    undoBtn: document.getElementById("undoBtn")
+    hidCountTab: document.getElementById("hidCountTab")
   };
 
   /* ---------- persistence ---------- */
@@ -588,18 +585,7 @@
       return;
     }
 
-    var visible = state.items.filter(function(it){ return !isHidden(it.objectID); });
-    var hidden = state.items.filter(function(it){ return isHidden(it.objectID); });
-    var hiddenCount = hidden.length;
-    state.hiddenCount = hiddenCount;
-    if(el.visCount) el.visCount.textContent = visible.length;
-    if(el.hidCountTab) el.hidCountTab.textContent = hiddenCount;
-    if(state.view === "hidden"){
-      el.count.textContent = hiddenCount === 0 ? "No hidden items" : (hiddenCount + (hiddenCount === 1 ? " hidden item" : " hidden items"));
-    } else {
-      el.count.textContent = visible.length === 0 ? "No items" :
-        (visible.length + (visible.length === 1 ? " item" : " items"));
-    }
+    updateCounts();
 
     if(state.error){
       el.grid.innerHTML = '<div class="error">Couldn\'t fetch results.<br><small>' +
@@ -609,6 +595,14 @@
       return;
     }
 
+    if(state.view === "hidden" && !state.items.some(function(it){ return isHidden(it.objectID); })){
+      el.grid.innerHTML = '<div class="empty">Nothing hidden. Swipe a card left (or hover its right side) to hide it.</div>';
+      return;
+    }
+    if(state.view !== "hidden" && !state.items.some(function(it){ return !isHidden(it.objectID); })){
+      el.grid.innerHTML = '<div class="empty">No matching items in Mesa right now.<br>Try another term or refresh later.</div>';
+      return;
+    }
     if(!state.items.length){
       el.grid.innerHTML = '<div class="empty">No matching items in Mesa right now.<br>Try another term or refresh later.</div>';
       return;
@@ -617,9 +611,29 @@
     var toRender = (state.view === "hidden") ? state.items.filter(function(it){ return isHidden(it.objectID); }) : state.items.filter(function(it){ return !isHidden(it.objectID); });
     el.grid.innerHTML = toRender.map(cardHTML).join("");
     attachCardGestures();
-    if(el.undoBar) el.undoBar.style.display = (state._undo && state._undo.id) ? "flex" : "none";
+    if(state._restoreId){
+      var rw = el.grid.querySelector('.card-wrap[data-id="' + cssEsc(state._restoreId) + '"]');
+      if(rw) rw.classList.add("restored");
+      state._restoreId = null;
+    }
     tickCountdowns();
   }
+
+  function updateCounts(){
+    var visible = state.items.filter(function(it){ return !isHidden(it.objectID); }).length;
+    var hidden = state.items.length - visible;
+    if(hidden < 0) hidden = 0;
+    state.hiddenCount = hidden;
+    if(el.visCount) el.visCount.textContent = visible;
+    if(el.hidCountTab) el.hidCountTab.textContent = hidden;
+    if(state.view === "hidden"){
+      el.count.textContent = hidden === 0 ? "No hidden items" : (hidden + (hidden === 1 ? " hidden item" : " hidden items"));
+    } else {
+      el.count.textContent = visible === 0 ? "No items" : (visible + (visible === 1 ? " item" : " items"));
+    }
+  }
+
+  function cssEsc(s){ return String(s).replace(/["\\]/g, "\\$&"); }
 
   function renderChips(){
     if(!state.groups.length){
@@ -693,9 +707,12 @@
     }
     if(retail != null) facts.push("<span>Est. retail <b>$" + esc(fmtMoney(retail)) + "</b></span>");
 
-    if(state.view === "hidden"){
-      return '<div class="card-wrap card-hidden" data-id="' + esc(id) + '">' +
-        '<div class="card">' +
+    var mode = state.view === "hidden" ? "unhide" : "hide";
+    var href = "https://www.nellisauction.com/p/-/" + encodeURIComponent(id);
+    var actLabel = mode === "hide" ? "Hide ✕" : "Unhide ↺";
+
+    var cardInner =
+      '<a class="card" href="' + href + '" target="_blank" rel="noopener" draggable="false">' +
         '<div class="thumb">' + (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="">' : "") + "</div>" +
         '<div class="body">' +
           '<div class="row">' + tags + "</div>" +
@@ -703,22 +720,15 @@
           (facts.length ? '<div class="facts">' + facts.join("") + "</div>" : "") +
           (event ? '<div class="event">' + esc(event) + "</div>" : "") +
           '<div class="closes" data-close="' + closeTs + '"><span class="dot"></span><span class="closes-text"></span></div>' +
-        "</div></div>" +
-        '<div class="card-actions"><button type="button" class="unhide-btn" data-id="' + esc(id) + '">Unhide</button><a class="open-btn" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) + '" target="_blank" rel="noopener">Open</a></div></div>';
-    }
+        "</div>" +
+      "</a>";
 
-    return '<div class="card-wrap" data-id="' + esc(id) + '">' +
-      '<div class="card-hide-backdrop" title="Open item"><span class="open-hint">Open</span></div>' +
-      '<a class="card" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) +
-      '" target="_blank" rel="noopener" draggable="false">' +
-      '<div class="thumb">' + (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="">' : "") + "</div>" +
-      '<div class="body">' +
-        '<div class="row">' + tags + "</div>" +
-        "<h3>" + esc(title) + "</h3>" +
-        (facts.length ? '<div class="facts">' + facts.join("") + "</div>" : "") +
-        (event ? '<div class="event">' + esc(event) + "</div>" : "") +
-        '<div class="closes" data-close="' + closeTs + '"><span class="dot"></span><span class="closes-text"></span></div>' +
-      "</div></a><div class=\"card-hide\"><span class=\"hide-text\" data-id=\"" + esc(id) + "\">Hide</span></div></div>";
+    return '<div class="card-wrap" data-id="' + esc(id) + '" data-mode="' + mode + '">' +
+      '<div class="swipe-bg">' + actLabel + "</div>" +
+      cardInner +
+      '<div class="hover-zone zone-left" title="Open item"><span class="pill">Open ↗</span></div>' +
+      '<div class="hover-zone zone-right" title="' + (mode === "hide" ? "Hide item" : "Unhide item") + '"><span class="pill">' + actLabel + "</span></div>" +
+    "</div>";
   }
 
   function tickCountdowns(){
@@ -763,79 +773,144 @@
   }
 
   /* ---------- card hide/unhide ---------- */
-  function showUndo(id){
-    state._undo = { id: id, ts: Date.now() };
-    if(el.undoBar) el.undoBar.style.display = "flex";
-    if(el.undoBtn) el.undoBtn.disabled = false;
+  var UNDO_MS = 6500;
+
+  function finalizeHide(w){
+    if(w._t){ clearTimeout(w._t); w._t = null; }
+    w.style.transition = "height .32s ease, opacity .32s ease";
+    w.style.height = "0px";
+    w.style.opacity = "0";
+    setTimeout(function(){ render(); }, 340);
   }
+
+  function animateHide(w, id){
+    if(!w || !id) return;
+    w._suppressClick = true;
+    if(w._t) clearTimeout(w._t);
+    state.hidden[id] = true;
+    saveHidden();
+    updateCounts();
+    var card = w.querySelector(".card");
+    var h = w.offsetHeight;
+    w.style.height = h + "px";
+    if(card){
+      card.style.transition = "transform .3s ease, opacity .3s ease";
+      card.style.transform = "translateX(-112%)";
+      card.style.opacity = "0";
+    }
+    setTimeout(function(){
+      // Replace the card with an inline Undo row that occupies the same slot.
+      w.innerHTML = '<div class="undo-row"><span>Item hidden</span><button type="button" class="undo-inline">Undo</button></div>';
+      w.style.transition = "none";
+      w.style.height = h + "px";
+      void w.offsetHeight; // reflow so the height change below animates
+      w.style.transition = "height .3s ease, opacity .3s ease";
+      w.style.height = "54px";
+      var btn = w.querySelector(".undo-inline");
+      if(btn) btn.addEventListener("click", function(){ undoHide(id); });
+      w._t = setTimeout(function(){ finalizeHide(w); }, UNDO_MS);
+    }, 300);
+  }
+
+  function undoHide(id){
+    delete state.hidden[id];
+    saveHidden();
+    state._restoreId = id;
+    render();
+  }
+
+  function animateUnhide(w, id){
+    if(!w || !id) return;
+    w._suppressClick = true;
+    var card = w.querySelector(".card");
+    if(card){
+      card.style.transition = "transform .3s ease, opacity .3s ease";
+      card.style.transform = "translateX(112%)";
+      card.style.opacity = "0";
+    }
+    setTimeout(function(){
+      delete state.hidden[id];
+      saveHidden();
+      state._restoreId = id;
+      render();
+    }, 300);
+  }
+
   function attachCardGestures(){
     Array.prototype.forEach.call(document.querySelectorAll(".card-wrap"), function(w){
       var card = w.querySelector(".card");
       if(!card) return;
       var id = w.getAttribute("data-id");
-      var startX = 0, startY = 0, curX = 0, dragging = false;
+      var mode = w.getAttribute("data-mode") || "hide";
+      var startX = 0, startY = 0, curX = 0, dragging = false, decided = false;
+
       function reset(){
-        card.style.transition = "transform .18s ease";
+        card.style.transition = "transform .24s ease, opacity .24s ease";
         card.style.transform = "";
-        dragging = false;
+        card.style.opacity = "";
+        dragging = false; decided = false;
       }
-      // touch
+
       w.addEventListener("touchstart", function(ev){
+        if(ev.touches.length > 1) return;
         var t = ev.changedTouches[0];
-        dragging = true;
-        startX = t.screenX || t.clientX; startY = t.screenY || t.clientY;
-        curX = 0;
+        dragging = true; decided = false;
+        startX = t.clientX; startY = t.clientY; curX = 0;
         card.style.transition = "none";
       }, {passive: true});
+
       w.addEventListener("touchmove", function(ev){
         if(!dragging) return;
         var t = ev.changedTouches[0];
-        var x = (t.screenX || t.clientX) - startX;
-        var y = (t.screenY || t.clientY) - startY;
-        if(Math.abs(x) > Math.abs(y) * 1.2){
-          ev.preventDefault();
-          curX = x;
-          if(curX < 0) card.style.transform = "translateX(" + curX + "px)";
+        var x = t.clientX - startX, y = t.clientY - startY;
+        if(!decided){
+          if(Math.abs(x) < 8 && Math.abs(y) < 8) return;
+          if(Math.abs(x) > Math.abs(y) * 1.2){ decided = true; }
+          else { dragging = false; card.style.transition = "transform .2s ease"; card.style.transform = ""; return; }
         }
+        ev.preventDefault();
+        var dx = (mode === "hide") ? Math.min(0, x) : Math.max(0, x);
+        curX = dx;
+        card.style.transform = "translateX(" + dx + "px)";
       }, {passive: false});
+
       w.addEventListener("touchend", function(){
         if(!dragging) return;
-        var threshold = -80;
-        if(curX < threshold && id && state.view !== "hidden"){
-          card.style.transition = "transform .15s ease";
-          card.style.transform = "translateX(-120%)";
-          setTimeout(function(){ hideItem(id); showUndo(id); }, 140);
+        dragging = false;
+        var threshold = 72;
+        if(mode === "hide" && curX < -threshold){
+          w._suppressClick = true;
+          animateHide(w, id);
+        } else if(mode === "unhide" && curX > threshold){
+          w._suppressClick = true;
+          animateUnhide(w, id);
         } else {
+          if(Math.abs(curX) > 6) w._suppressClick = true;
           reset();
         }
-        dragging = false;
       });
-      w.addEventListener("touchcancel", reset);
-      // desktop hide button
-      var hideText = w.querySelector(".hide-text");
-      if(hideText){
-        hideText.addEventListener("click", function(ev){
-          ev.preventDefault();
-          var hid = hideText.getAttribute("data-id");
-          if(hid){ hideItem(hid); showUndo(hid); }
+      w.addEventListener("touchcancel", function(){ if(dragging) reset(); });
+
+      // Suppress the link click that follows a swipe.
+      card.addEventListener("click", function(ev){
+        if(w._suppressClick){ ev.preventDefault(); ev.stopPropagation(); w._suppressClick = false; }
+      });
+
+      // PC hover zones
+      var zl = w.querySelector(".zone-left");
+      if(zl){
+        zl.addEventListener("click", function(ev){
+          ev.preventDefault(); ev.stopPropagation();
+          window.open(card.getAttribute("href"), "_blank", "noopener");
         });
       }
-      // open backdrop (left side)
-      var bd = w.querySelector(".card-hide-backdrop");
-      if(bd){
-        bd.addEventListener("click", function(ev){
-          var link = w.querySelector("a.card");
-          if(link) window.open(link.href, "_blank", "noopener");
-        });
-        bd.addEventListener("mouseenter", function(){ bd.querySelector(".open-hint").style.display = "block"; });
-        bd.addEventListener("mouseleave", function(){ bd.querySelector(".open-hint").style.display = "none"; });
-      }
-      // hidden view actions
-      var unhideBtn = w.querySelector(".unhide-btn");
-      if(unhideBtn){
-        unhideBtn.addEventListener("click", function(){
-          var uid = unhideBtn.getAttribute("data-id");
-          if(uid) unhideItem(uid);
+      var zr = w.querySelector(".zone-right");
+      if(zr){
+        zr.addEventListener("click", function(ev){
+          ev.preventDefault(); ev.stopPropagation();
+          var onPill = ev.target && ev.target.closest && ev.target.closest(".pill");
+          if(onPill){ if(mode === "hide") animateHide(w, id); else animateUnhide(w, id); }
+          else { window.open(card.getAttribute("href"), "_blank", "noopener"); }
         });
       }
     });
@@ -859,15 +934,6 @@
           render();
         }
       });
-    });
-  }
-  if(el.undoBtn){
-    el.undoBtn.addEventListener("click", function(){
-      if(state._undo && state._undo.id){
-        unhideItem(state._undo.id);
-      }
-      state._undo = null;
-      if(el.undoBar) el.undoBar.style.display = "none";
     });
   }
   el.form.addEventListener("submit", function(e){

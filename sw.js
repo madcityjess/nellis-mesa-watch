@@ -1,7 +1,7 @@
 /* Minimal service worker for the app shell.
    Network-first for same-origin files so app updates always land;
    falls back to cache when offline. Algolia + images are never cached. */
-var CACHE = "nmw-shell-v4";
+var CACHE = "nmw-shell-v5";
 var ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", function(e){
