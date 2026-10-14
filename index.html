@@ -95,10 +95,24 @@
 
   .card-wrap{position:relative;overflow:hidden;border-radius:var(--radius)}
   .card-wrap .card{position:relative;z-index:1;transform:translateX(0);transition:transform .18s ease}
-  .card-wrap .card-hide{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 20px;background:linear-gradient(90deg,transparent,rgba(123,0,3,.92));color:#fff;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none}
+  .card-wrap{position:relative;overflow:hidden;border-radius:var(--radius)}
+  .card-wrap .card{position:relative;z-index:1;transform:translateX(0);transition:transform .18s ease}
+  .card-wrap .card-hide{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:0 20px;background:linear-gradient(90deg,transparent,rgba(123,0,3,.92));color:#fff;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.04em;pointer-events:none;user-select:none}
+  .card-wrap .card-hide .hide-text{pointer-events:auto;display:flex;align-items:center;justify-content:center;height:100%;padding:0 20px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .card-wrap .card-hide .hide-text:active{opacity:.9}
+  .card-hide-backdrop{position:absolute;left:0;top:0;bottom:0;width:70px;pointer-events:auto;cursor:pointer;display:flex;align-items:center;justify-content:flex-start;padding-left:6px;z-index:2}
+  .card-hide-backdrop .open-hint{color:#fff;font-size:11px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6);background:rgba(0,0,0,.45);border-radius:8px;padding:4px 6px;display:none}
+  @media (hover:hover){ .card-hide-backdrop:hover .open-hint{display:block} }
+  .card-hidden .card{transform:none}
+  .card-hidden .card-actions{position:absolute;right:0;top:0;bottom:0;display:flex;flex-direction:column;gap:8px;justify-content:center;padding-right:12px;z-index:2}
+  .unhide-btn, .open-btn{border:1px solid rgba(255,255,255,.9);background:rgba(123,0,3,.85);color:#fff;border-radius:8px;padding:8px 10px;font-weight:800;font-size:12px;cursor:pointer;text-decoration:none}
+  .open-btn{background:rgba(0,0,0,.7)}
 
-  .hidden-bar{display:flex;align-items:center;justify-content:space-between;background:#fff3cd;border:1px solid #ffeaa7;border-radius:12px;padding:8px 12px;font-size:13px;color:#856404;box-shadow:var(--shadow)}
-  .hidden-btn{border:1px solid #ffeaa7;background:#fff8e1;color:#856404;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;cursor:pointer}
+  .view-tabs{display:flex;gap:6px;margin:4px 6px 10px;background:#f3f1ee;border:1px solid var(--line);border-radius:12px;padding:4px}
+  .view-tab{flex:1;border:0;background:transparent;border-radius:10px;padding:8px 10px;font-size:13px;font-weight:700;color:var(--muted);cursor:pointer}
+  .view-tab.active{background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.05);color:var(--ink)}
+  .undo-bar{display:flex;align-items:center;justify-content:space-between;background:#e7f5ec;border:1px solid #c9e6d6;border-radius:12px;padding:8px 12px;font-size:13px;color:var(--ok);box-shadow:var(--shadow)}
+  .undo-btn{border:1px solid #c9e6d6;background:#fff;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;color:var(--ok);cursor:pointer}
 
   .results-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 6px 10px;gap:10px}
   .results-head .count{font-weight:800;font-size:15px}
@@ -174,14 +188,19 @@
     </label>
   </section>
 
-  <div class="hidden-bar" id="hiddenBar" style="display:none; margin:4px 6px 10px;">
-    <span class="hidden-text"><span id="hiddenCount">0</span> hidden</span>
-    <button type="button" id="showHiddenBtn" class="hidden-btn">Show / Clear hidden</button>
+  <div class="view-tabs" id="viewTabs">
+    <button type="button" class="view-tab active" data-view="visible">Visible (<span id="visCount">0</span>)</button>
+    <button type="button" class="view-tab" data-view="hidden">Hidden (<span id="hidCountTab">0</span>)</button>
   </div>
 
   <div class="results-head">
     <span class="count" id="resultCount">—</span>
     <span class="loc">Location: Mesa</span>
+  </div>
+
+  <div id="undoBar" class="undo-bar" style="display:none; margin:4px 6px 10px;">
+    <span>Item hidden</span>
+    <button type="button" id="undoBtn" class="undo-btn">Undo</button>
   </div>
 
   <div class="grid" id="grid"></div>
@@ -218,10 +237,12 @@
     bidsRun: 0,
     hidden: loadHidden(),
     hiddenCount: 0,
+    view: "visible",
     items: [],
     updated: null,
     busy: false,
-    error: null
+    error: null,
+    _undo: null
   };
 
   var el = {
@@ -233,9 +254,11 @@
     input: document.getElementById("termInput"),
     refresh: document.getElementById("refreshBtn"),
     exact: document.getElementById("exactToggle"),
-    hiddenBar: document.getElementById("hiddenBar"),
-    hiddenCount: document.getElementById("hiddenCount"),
-    showHiddenBtn: document.getElementById("showHiddenBtn")
+    viewTabs: document.getElementById("viewTabs"),
+    visCount: document.getElementById("visCount"),
+    hidCountTab: document.getElementById("hidCountTab"),
+    undoBar: document.getElementById("undoBar"),
+    undoBtn: document.getElementById("undoBtn")
   };
 
   /* ---------- persistence ---------- */
@@ -298,6 +321,11 @@
   }
   function hideItem(id){
     state.hidden[id] = true;
+    saveHidden();
+    render();
+  }
+  function unhideItem(id){
+    delete state.hidden[id];
     saveHidden();
     render();
   }
@@ -561,13 +589,17 @@
     }
 
     var visible = state.items.filter(function(it){ return !isHidden(it.objectID); });
-    var hiddenCount = state.items.length - visible.length;
-    if(hiddenCount < 0) hiddenCount = 0;
+    var hidden = state.items.filter(function(it){ return isHidden(it.objectID); });
+    var hiddenCount = hidden.length;
     state.hiddenCount = hiddenCount;
-    if(el.hiddenBar){ el.hiddenBar.style.display = hiddenCount > 0 ? "flex" : "none"; }
-    if(el.hiddenCount){ el.hiddenCount.textContent = hiddenCount; }
-    el.count.textContent = visible.length === 0 ? (hiddenCount > 0 ? "All items hidden" : "No items") :
-      (visible.length + (visible.length === 1 ? " item" : " items"));
+    if(el.visCount) el.visCount.textContent = visible.length;
+    if(el.hidCountTab) el.hidCountTab.textContent = hiddenCount;
+    if(state.view === "hidden"){
+      el.count.textContent = hiddenCount === 0 ? "No hidden items" : (hiddenCount + (hiddenCount === 1 ? " hidden item" : " hidden items"));
+    } else {
+      el.count.textContent = visible.length === 0 ? "No items" :
+        (visible.length + (visible.length === 1 ? " item" : " items"));
+    }
 
     if(state.error){
       el.grid.innerHTML = '<div class="error">Couldn\'t fetch results.<br><small>' +
@@ -582,8 +614,10 @@
       return;
     }
 
-    el.grid.innerHTML = state.items.filter(function(it){ return !isHidden(it.objectID); }).map(cardHTML).join("");
+    var toRender = (state.view === "hidden") ? state.items.filter(function(it){ return isHidden(it.objectID); }) : state.items.filter(function(it){ return !isHidden(it.objectID); });
+    el.grid.innerHTML = toRender.map(cardHTML).join("");
     attachCardGestures();
+    if(el.undoBar) el.undoBar.style.display = (state._undo && state._undo.id) ? "flex" : "none";
     tickCountdowns();
   }
 
@@ -659,9 +693,24 @@
     }
     if(retail != null) facts.push("<span>Est. retail <b>$" + esc(fmtMoney(retail)) + "</b></span>");
 
+    if(state.view === "hidden"){
+      return '<div class="card-wrap card-hidden" data-id="' + esc(id) + '">' +
+        '<div class="card">' +
+        '<div class="thumb">' + (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="">' : "") + "</div>" +
+        '<div class="body">' +
+          '<div class="row">' + tags + "</div>" +
+          "<h3>" + esc(title) + "</h3>" +
+          (facts.length ? '<div class="facts">' + facts.join("") + "</div>" : "") +
+          (event ? '<div class="event">' + esc(event) + "</div>" : "") +
+          '<div class="closes" data-close="' + closeTs + '"><span class="dot"></span><span class="closes-text"></span></div>' +
+        "</div></div>" +
+        '<div class="card-actions"><button type="button" class="unhide-btn" data-id="' + esc(id) + '">Unhide</button><a class="open-btn" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) + '" target="_blank" rel="noopener">Open</a></div></div>';
+    }
+
     return '<div class="card-wrap" data-id="' + esc(id) + '">' +
+      '<div class="card-hide-backdrop" title="Open item"><span class="open-hint">Open</span></div>' +
       '<a class="card" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) +
-      '" target="_blank" rel="noopener">' +
+      '" target="_blank" rel="noopener" draggable="false">' +
       '<div class="thumb">' + (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="">' : "") + "</div>" +
       '<div class="body">' +
         '<div class="row">' + tags + "</div>" +
@@ -669,7 +718,7 @@
         (facts.length ? '<div class="facts">' + facts.join("") + "</div>" : "") +
         (event ? '<div class="event">' + esc(event) + "</div>" : "") +
         '<div class="closes" data-close="' + closeTs + '"><span class="dot"></span><span class="closes-text"></span></div>' +
-      "</div></a><div class=\"card-hide\">Swipe left to hide</div></div>";
+      "</div></a><div class=\"card-hide\"><span class=\"hide-text\" data-id=\"" + esc(id) + "\">Hide</span></div></div>";
   }
 
   function tickCountdowns(){
@@ -713,21 +762,27 @@
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
-  /* ---------- card swipe to hide ---------- */
+  /* ---------- card hide/unhide ---------- */
+  function showUndo(id){
+    state._undo = { id: id, ts: Date.now() };
+    if(el.undoBar) el.undoBar.style.display = "flex";
+    if(el.undoBtn) el.undoBtn.disabled = false;
+  }
   function attachCardGestures(){
     Array.prototype.forEach.call(document.querySelectorAll(".card-wrap"), function(w){
       var card = w.querySelector(".card");
       if(!card) return;
       var id = w.getAttribute("data-id");
-      var startX = 0, startY = 0, curX = 0, isTouch = false, dragging = false;
+      var startX = 0, startY = 0, curX = 0, dragging = false;
       function reset(){
         card.style.transition = "transform .18s ease";
         card.style.transform = "";
         dragging = false;
       }
+      // touch
       w.addEventListener("touchstart", function(ev){
         var t = ev.changedTouches[0];
-        isTouch = true; dragging = true;
+        dragging = true;
         startX = t.screenX || t.clientX; startY = t.screenY || t.clientY;
         curX = 0;
         card.style.transition = "none";
@@ -746,16 +801,43 @@
       w.addEventListener("touchend", function(){
         if(!dragging) return;
         var threshold = -80;
-        if(curX < threshold && id){
+        if(curX < threshold && id && state.view !== "hidden"){
           card.style.transition = "transform .15s ease";
           card.style.transform = "translateX(-120%)";
-          setTimeout(function(){ hideItem(id); }, 140);
+          setTimeout(function(){ hideItem(id); showUndo(id); }, 140);
         } else {
           reset();
         }
         dragging = false;
       });
       w.addEventListener("touchcancel", reset);
+      // desktop hide button
+      var hideText = w.querySelector(".hide-text");
+      if(hideText){
+        hideText.addEventListener("click", function(ev){
+          ev.preventDefault();
+          var hid = hideText.getAttribute("data-id");
+          if(hid){ hideItem(hid); showUndo(hid); }
+        });
+      }
+      // open backdrop (left side)
+      var bd = w.querySelector(".card-hide-backdrop");
+      if(bd){
+        bd.addEventListener("click", function(ev){
+          var link = w.querySelector("a.card");
+          if(link) window.open(link.href, "_blank", "noopener");
+        });
+        bd.addEventListener("mouseenter", function(){ bd.querySelector(".open-hint").style.display = "block"; });
+        bd.addEventListener("mouseleave", function(){ bd.querySelector(".open-hint").style.display = "none"; });
+      }
+      // hidden view actions
+      var unhideBtn = w.querySelector(".unhide-btn");
+      if(unhideBtn){
+        unhideBtn.addEventListener("click", function(){
+          var uid = unhideBtn.getAttribute("data-id");
+          if(uid) unhideItem(uid);
+        });
+      }
     });
   }
 
@@ -766,12 +848,26 @@
     saveExact();
     refresh();
   });
-  if(el.showHiddenBtn){
-    el.showHiddenBtn.addEventListener("click", function(){
-      state.hidden = {};
-      state.hiddenCount = 0;
-      saveHidden();
-      render();
+  if(el.viewTabs){
+    Array.prototype.forEach.call(el.viewTabs.querySelectorAll(".view-tab"), function(btn){
+      btn.addEventListener("click", function(){
+        var v = btn.getAttribute("data-view");
+        if(v === "visible" || v === "hidden"){
+          state.view = v;
+          Array.prototype.forEach.call(el.viewTabs.querySelectorAll(".view-tab"), function(b){ b.classList.remove("active"); });
+          btn.classList.add("active");
+          render();
+        }
+      });
+    });
+  }
+  if(el.undoBtn){
+    el.undoBtn.addEventListener("click", function(){
+      if(state._undo && state._undo.id){
+        unhideItem(state._undo.id);
+      }
+      state._undo = null;
+      if(el.undoBar) el.undoBar.style.display = "none";
     });
   }
   el.form.addEventListener("submit", function(e){
