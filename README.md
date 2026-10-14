@@ -45,7 +45,7 @@ Everything works, but you won't get the "install as app" behaviour and updates r
 ## Using it
 
 - **Refresh** button re-queries live.
-- **Search terms** box: add/remove terms (e.g. `Milwaukee`, `Raspberry Pi`). Saved on the phone.
+- **Search terms** box: add/remove terms (e.g. `Tools`, `Raspberry Pi`). Saved on the phone.
 - **Related words:** put commas in one entry to search several related words at once —
   e.g. `lathe, faceplate, chuck`. They're grouped under the first word (the label), so results
   are tagged `LATHE` even when they matched `faceplate` or `chuck`. Adding `lathe, faceplate`
