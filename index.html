@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nellis Mesa Watch</title>
+<meta name="description" content="Your saved auction search terms, filtered to the Mesa location, refreshed on demand.">
+<meta name="theme-color" content="#7b0003">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --burgundy:#7b0003;
+    --red:#93291E;
+    --red-light:#b42418;
+    --bg:#f4f2f0;
+    --card:#ffffff;
+    --ink:#1c1a19;
+    --muted:#6b6560;
+    --line:#e6e0dc;
+    --ok:#1f7a44;
+    --warn:#b06a00;
+    --danger:#b00020;
+    --radius:16px;
+    --shadow:0 1px 2px rgba(0,0,0,.06),0 6px 20px rgba(0,0,0,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  a{color:inherit;text-decoration:none}
+  header{
+    position:sticky;top:0;z-index:10;
+    background:linear-gradient(135deg,var(--burgundy),var(--red));
+    color:#fff;
+    padding:calc(env(safe-area-inset-top) + 14px) 16px 14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.15);
+  }
+  .hd-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .brand{display:flex;flex-direction:column;min-width:0}
+  .brand h1{margin:0;font-size:19px;line-height:1.15;font-weight:800;letter-spacing:.2px}
+  .brand .sub{font-size:12px;opacity:.85;margin-top:2px;display:flex;align-items:center;gap:6px}
+  .pin{display:inline-block;transform:translateY(-1px)}
+  button{font:inherit;cursor:pointer}
+  .refresh{
+    flex:none;display:inline-flex;align-items:center;gap:8px;
+    background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.35);
+    border-radius:999px;padding:9px 15px;font-weight:700;font-size:14px;
+  }
+  .refresh:active{background:rgba(255,255,255,.3)}
+  .refresh[disabled]{opacity:.6}
+  .spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+  .loading .spinner{display:block}
+  .loading .refresh-ico{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .statusbar{font-size:12px;opacity:.9;margin-top:10px}
+  main{max-width:900px;margin:0 auto;padding:14px 12px 40px}
+
+  .terms{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px;box-shadow:var(--shadow);margin-bottom:14px;
+  }
+  .terms h2{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;background:#f3e9e9;color:var(--burgundy);
+    border:1px solid #e4cfcf;border-radius:999px;padding:6px 10px;font-size:13px;font-weight:700;
+  }
+  .chip button{border:0;background:transparent;color:var(--burgundy);font-size:15px;line-height:1;padding:0 1px;opacity:.7}
+  .chip button:hover{opacity:1}
+  .addterm{display:flex;gap:8px;margin-top:10px}
+  .addterm input{
+    flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#fafaf9;
+  }
+  .addterm input:focus{outline:2px solid var(--red-light);outline-offset:0;border-color:transparent}
+  .addterm button{
+    border:0;border-radius:10px;background:var(--red);color:#fff;font-weight:800;padding:0 16px;
+  }
+  .addterm button:active{background:var(--red-light)}
+
+  .results-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 6px 10px;gap:10px}
+  .results-head .count{font-weight:800;font-size:15px}
+  .results-head .loc{font-size:12px;color:var(--muted);background:#ece7e3;border-radius:999px;padding:4px 10px;font-weight:700}
+
+  .grid{display:grid;grid-template-columns:1fr;gap:12px}
+  @media (min-width:620px){.grid{grid-template-columns:1fr 1fr}}
+
+  .card{
+    display:flex;gap:12px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);
+    transition:transform .06s ease, box-shadow .15s ease;
+  }
+  .card:active{transform:scale(.992)}
+  .card .thumb{
+    flex:none;width:118px;min-height:118px;background:#f0eeec;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .card .thumb img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply}
+  .card .body{padding:10px 12px 11px 0;min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}
+  .card .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .tag{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-radius:6px;padding:3px 6px}
+  .tag.term{background:#f3e9e9;color:var(--burgundy)}
+  .tag.new{background:#e7f5ec;color:var(--ok)}
+  .tag.cond-new{background:#e7f5ec;color:var(--ok)}
+  .tag.cond-used{background:#fdf0df;color:var(--warn)}
+  .card h3{margin:0;font-size:15px;line-height:1.28;font-weight:700;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .card .facts{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;color:var(--muted);margin-top:1px}
+  .card .facts b{color:var(--ink)}
+  .card .event{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .card .closes{
+    margin-top:auto;font-size:12.5px;font-weight:800;display:inline-flex;align-items:center;gap:6px;
+    color:var(--burgundy);
+  }
+  .card .closes.soon{color:var(--danger)}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+
+  .empty,.error{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:26px 18px;text-align:center;color:var(--muted);box-shadow:var(--shadow);
+  }
+  .error{border-color:#e7bcbc;color:var(--danger)}
+  .error button,.empty button{margin-top:12px;border:0;border-radius:10px;background:var(--red);color:#fff;font-weight:800;padding:10px 18px}
+  .hint{font-size:12px;color:var(--muted);text-align:center;margin-top:18px;line-height:1.5}
+  .skel{background:linear-gradient(90deg,#eee 25%,#f6f6f6 37%,#eee 63%);background-size:400% 100%;animation:sh 1.2s ease infinite;border-radius:8px}
+  @keyframes sh{0%{background-position:100% 0}100%{background-position:0 0}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hd-top">
+    <div class="brand">
+      <h1>Nellis Mesa Watch</h1>
+      <div class="sub"><span class="pin">📍</span> Mesa location · <span id="lastUpdated">never updated</span></div>
+    </div>
+    <button class="refresh" id="refreshBtn" aria-label="Refresh results">
+      <span class="refresh-ico">↻</span><span class="spinner"></span><span>Refresh</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <section class="terms">
+    <h2>Search terms</h2>
+    <div class="chips" id="termChips"></div>
+    <form class="addterm" id="addTermForm">
+      <input id="termInput" type="text" placeholder="Add a term (e.g. Milwaukee)" autocomplete="off" autocapitalize="words" enterkeyhint="done">
+      <button type="submit">Add</button>
+    </form>
+  </section>
+
+  <div class="results-head">
+    <span class="count" id="resultCount">—</span>
+    <span class="loc">Location: Mesa</span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="hint">Tap any item to open it on nellisauction.com. Results are fetched live each time you refresh.</div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var CONFIG = {
+    appId: "GL1QVP8R29",
+    apiKey: "d22f83c614aa8eda28fa9eadda0d07b9",
+    index: "nellisauction-prd",
+    location: "Mesa",
+    defaultTerms: ["Esp32", "DeWalt"],
+    hitsPerPage: 50
+  };
+
+  var LS_TERMS = "nmw.terms.v1";
+  var LS_CACHE = "nmw.cache.v1";
+
+  var state = {
+    terms: loadTerms(),
+    items: [],
+    updated: null,
+    busy: false,
+    error: null
+  };
+
+  var el = {
+    grid: document.getElementById("grid"),
+    count: document.getElementById("resultCount"),
+    lastUpdated: document.getElementById("lastUpdated"),
+    chips: document.getElementById("termChips"),
+    form: document.getElementById("addTermForm"),
+    input: document.getElementById("termInput"),
+    refresh: document.getElementById("refreshBtn")
+  };
+
+  /* ---------- persistence ---------- */
+  function loadTerms(){
+    try{
+      var raw = localStorage.getItem(LS_TERMS);
+      if(raw){
+        var arr = JSON.parse(raw);
+        if(Array.isArray(arr) && arr.length) return arr.map(String).filter(Boolean);
+      }
+    }catch(e){}
+    return CONFIG.defaultTerms.slice();
+  }
+  function saveTerms(){
+    try{ localStorage.setItem(LS_TERMS, JSON.stringify(state.terms)); }catch(e){}
+  }
+  function loadCache(){
+    try{
+      var raw = localStorage.getItem(LS_CACHE);
+      if(!raw) return null;
+      var c = JSON.parse(raw);
+      if(c && Array.isArray(c.items)) return c;
+    }catch(e){}
+    return null;
+  }
+  function saveCache(){
+    try{
+      localStorage.setItem(LS_CACHE, JSON.stringify({ items: state.items, updated: state.updated, ts: Date.now() }));
+    }catch(e){}
+  }
+
+  /* ---------- algolia ---------- */
+  function searchTerm(term, creds){
+    var now = Math.floor(Date.now() / 1000);
+    var body = {
+      query: term,
+      hitsPerPage: CONFIG.hitsPerPage,
+      facetFilters: [["Location Name:" + CONFIG.location]],
+      numericFilters: ["Date Closed > " + now, "Sensitive = 0"],
+      attributesToRetrieve: [
+        "objectID","Lead Description","Brand","Suggested Retail","Photo",
+        "Auction Event Name","Date Closed","Item Condition","Location Name"
+      ]
+    };
+    return fetch("https://" + creds.appId + "-dsn.algolia.net/1/indexes/" + creds.index + "/query", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Algolia-API-Key": creds.apiKey,
+        "X-Algolia-Application-Id": creds.appId
+      },
+      body: JSON.stringify(body)
+    }).then(function(res){
+      if(!res.ok){
+        var e = new Error("Search failed (" + res.status + ")");
+        e.status = res.status;
+        throw e;
+      }
+      return res.json();
+    }).then(function(data){
+      return (data.hits || []).map(function(h){
+        return Object.assign({}, h, { _term: term });
+      });
+    });
+  }
+
+  // If the public key ever rotates, recover current credentials from the site HTML
+  // via a public CORS proxy.
+  function recoverCreds(){
+    var target = "https://www.nellisauction.com/search?query=x";
+    var proxy = "https://api.allorigins.win/raw?url=" + encodeURIComponent(target);
+    return fetch(proxy).then(function(r){ return r.text(); }).then(function(html){
+      var key = match(html, /APP_PUBLIC_ALGOLIA_API_KEY":"([^"]+)"/) || match(html, /APP_PUBLIC_ALGOLIA_API_KEY",\s*"([^"]+)"/);
+      var id  = match(html, /APP_PUBLIC_ALGOLIA_ID":"([^"]+)"/)  || match(html, /APP_PUBLIC_ALGOLIA_ID",\s*"([^"]+)"/);
+      var idx = match(html, /APP_PUBLIC_ALGOLIA_INDEX":"([^"]+)"/) || match(html, /APP_PUBLIC_ALGOLIA_INDEX",\s*"([^"]+)"/);
+      if(key && id){
+        CONFIG.apiKey = key; CONFIG.appId = id;
+        if(idx) CONFIG.index = idx;
+        return true;
+      }
+      return false;
+    }).catch(function(){ return false; });
+  }
+  function match(s, re){ var m = s.match(re); return m ? m[1] : null; }
+
+  function creds(){ return { appId: CONFIG.appId, apiKey: CONFIG.apiKey, index: CONFIG.index }; }
+
+  /* ---------- fetch & merge ---------- */
+  function refresh(){
+    if(state.busy) return;
+    if(!state.terms.length){ state.items = []; state.error = null; render(); return; }
+
+    setBusy(true);
+    state.error = null;
+    render();
+
+    var activeCreds = creds();
+    var jobs = state.terms.map(function(t){
+      return searchTerm(t, activeCreds).catch(function(err){
+        if(err && (err.status === 401 || err.status === 403)){
+          return recoverCreds().then(function(ok){
+            if(!ok) throw err;
+            return searchTerm(t, creds());
+          });
+        }
+        throw err;
+      });
+    });
+
+    Promise.all(jobs).then(function(lists){
+      var map = {};
+      lists.forEach(function(list){
+        list.forEach(function(h){
+          if(!map[h.objectID]) map[h.objectID] = h;
+        });
+      });
+      state.items = Object.keys(map).map(function(k){ return map[k]; })
+        .sort(function(a, b){ return (a["Date Closed"] || 0) - (b["Date Closed"] || 0); });
+      state.updated = Date.now();
+      setBusy(false);
+      saveCache();
+      render();
+    }).catch(function(err){
+      setBusy(false);
+      state.error = err && err.message ? err.message : "Something went wrong.";
+      render();
+    });
+  }
+
+  function setBusy(b){
+    state.busy = b;
+    el.refresh.disabled = b;
+    el.refresh.classList.toggle("loading", b);
+  }
+
+  /* ---------- rendering ---------- */
+  function render(){
+    renderChips();
+    renderStatus();
+
+    if(state.busy && !state.items.length){
+      el.count.textContent = "Searching…";
+      el.grid.innerHTML = skeletons(3);
+      return;
+    }
+
+    el.count.textContent = state.items.length === 0 ? "No items" :
+      (state.items.length + (state.items.length === 1 ? " item" : " items"));
+
+    if(state.error){
+      el.grid.innerHTML = '<div class="error">Couldn\'t fetch results.<br><small>' +
+        esc(state.error) + '</small><br><button id="retryBtn">Try again</button></div>';
+      var rb = document.getElementById("retryBtn");
+      if(rb) rb.addEventListener("click", refresh);
+      return;
+    }
+
+    if(!state.items.length){
+      el.grid.innerHTML = '<div class="empty">No matching items in Mesa right now.<br>Try another term or refresh later.</div>';
+      return;
+    }
+
+    el.grid.innerHTML = state.items.map(cardHTML).join("");
+    tickCountdowns();
+  }
+
+  function renderChips(){
+    el.chips.innerHTML = state.terms.map(function(t, i){
+      return '<span class="chip">' + esc(t) + '<button type="button" data-i="' + i +
+        '" aria-label="Remove ' + esc(t) + '">×</button></span>';
+    }).join("") || '<span style="color:var(--muted);font-size:13px">No terms yet — add one below.</span>';
+
+    Array.prototype.forEach.call(el.chips.querySelectorAll("button[data-i]"), function(btn){
+      btn.addEventListener("click", function(){
+        state.terms.splice(parseInt(btn.getAttribute("data-i"), 10), 1);
+        saveTerms();
+        render();
+        refresh();
+      });
+    });
+  }
+
+  function renderStatus(){
+    var t = state.updated ? new Date(state.updated) : null;
+    el.lastUpdated.textContent = t ? ("updated " + t.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})) : "never updated";
+  }
+
+  function cardHTML(it){
+    var id = it.objectID;
+    var title = it["Lead Description"] || "Untitled item";
+    var brand = it["Brand"];
+    var retail = it["Suggested Retail"];
+    var photo = it["Photo"];
+    var event = it["Auction Event Name"];
+    var cond = it["Item Condition"];
+    var closeTs = Number(it["Date Closed"]) || 0;
+
+    var condClass = cond === "New" ? "cond-new" : "cond-used";
+
+    var tags = '<span class="tag term">' + esc(it._term || "") + "</span>";
+    if(cond) tags += '<span class="tag ' + condClass + '">' + esc(cond) + "</span>";
+
+    var facts = [];
+    if(brand) facts.push("<span>Brand <b>" + esc(brand) + "</b></span>");
+    if(retail != null) facts.push("<span>Est. retail <b>$" + esc(fmtMoney(retail)) + "</b></span>");
+
+    return '<a class="card" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) +
+      '" target="_blank" rel="noopener">' +
+      '<div class="thumb">' + (photo ? '<img loading="lazy" src="' + esc(photo) + '" alt="">' : "") + "</div>" +
+      '<div class="body">' +
+        '<div class="row">' + tags + "</div>" +
+        "<h3>" + esc(title) + "</h3>" +
+        (facts.length ? '<div class="facts">' + facts.join("") + "</div>" : "") +
+        (event ? '<div class="event">' + esc(event) + "</div>" : "") +
+        '<div class="closes" data-close="' + closeTs + '"><span class="dot"></span><span class="closes-text"></span></div>' +
+      "</div></a>";
+  }
+
+  function tickCountdowns(){
+    var nodes = el.grid.querySelectorAll(".closes");
+    Array.prototype.forEach.call(nodes, function(n){
+      var ts = Number(n.getAttribute("data-close")) || 0;
+      var label = n.querySelector(".closes-text");
+      if(!label) return;
+      var diff = ts * 1000 - Date.now();
+      if(diff <= 0){
+        label.textContent = "Ended";
+        n.classList.remove("soon");
+        return;
+      }
+      var d = Math.floor(diff / 86400000);
+      var h = Math.floor(diff % 86400000 / 3600000);
+      var m = Math.floor(diff % 3600000 / 60000);
+      var s = Math.floor(diff % 60000 / 1000);
+      var text = d > 0 ? (d + "d " + h + "h") : (h > 0 ? (h + "h " + m + "m") : (m + "m " + s + "s"));
+      label.textContent = "Closes in " + text;
+      n.classList.toggle("soon", diff < 3600000);
+    });
+  }
+
+  function skeletons(n){
+    var out = "";
+    for(var i = 0; i < n; i++){
+      out += '<div class="card"><div class="thumb skel" style="background:#eee"></div>' +
+        '<div class="body"><div class="skel" style="height:12px;width:40%"></div>' +
+        '<div class="skel" style="height:16px;width:90%"></div>' +
+        '<div class="skel" style="height:12px;width:70%"></div>' +
+        '<div class="skel" style="height:12px;width:50%"></div></div></div>';
+    }
+    return out;
+  }
+
+  function fmtMoney(v){ var n = Number(v); return isFinite(n) ? n.toFixed(2) : String(v); }
+  function esc(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  /* ---------- events ---------- */
+  el.refresh.addEventListener("click", refresh);
+  el.form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var v = el.input.value.trim();
+    if(!v) return;
+    var exists = state.terms.some(function(t){ return t.toLowerCase() === v.toLowerCase(); });
+    if(!exists){ state.terms.push(v); saveTerms(); }
+    el.input.value = "";
+    render();
+    refresh();
+  });
+
+  /* ---------- boot ---------- */
+  var cached = loadCache();
+  if(cached){
+    state.items = cached.items || [];
+    state.updated = cached.updated || null;
+    render();
+  }
+  renderChips();
+  renderStatus();
+  refresh();
+
+  setInterval(tickCountdowns, 30000);
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("sw.js").catch(function(){});
+    });
+  }
+})();
+</script>
+</body>
+</html>
