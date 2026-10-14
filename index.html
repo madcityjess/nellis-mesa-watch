@@ -314,7 +314,21 @@
       var raw = localStorage.getItem(LS_HIDDEN);
       if(raw){
         var obj = JSON.parse(raw);
-        if(obj && typeof obj === "object") return obj;
+        if(obj && typeof obj === "object"){
+          // Migrate old format: { id: true } → { id: {closeTs: 0} }
+          var migrated = {};
+          for(var k in obj){
+            if(!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+            var v = obj[k];
+            if(v && typeof v === "object"){
+              migrated[k] = { closeTs: (v.closeTs == null ? 0 : Number(v.closeTs)), hiddenAt: (v.hiddenAt == null ? 0 : Number(v.hiddenAt)) };
+            } else {
+              // legacy boolean
+              migrated[k] = { closeTs: 0, hiddenAt: 0 };
+            }
+          }
+          return migrated;
+        }
       }
     }catch(e){}
     return {};
@@ -322,8 +336,17 @@
   function saveHidden(){
     try{ localStorage.setItem(LS_HIDDEN, JSON.stringify(state.hidden)); }catch(e){}
   }
+  function findItemById(id){
+    if(!state.items) return null;
+    for(var i = 0; i < state.items.length; i++){
+      if(state.items[i].objectID === id) return state.items[i];
+    }
+    return null;
+  }
   function hideItem(id){
-    state.hidden[id] = true;
+    var it = findItemById(id);
+    var closeTs = it ? Number(it["Date Closed"]) || 0 : 0;
+    state.hidden[id] = { closeTs: closeTs, hiddenAt: Date.now() / 1000 };
     saveHidden();
     render();
   }
@@ -334,6 +357,28 @@
   }
   function isHidden(id){
     return !!state.hidden[id];
+  }
+  function purgeExpiredHidden(){
+    var nowSec = Math.floor(Date.now() / 1000);
+    var changed = false;
+    for(var id in state.hidden){
+      if(!Object.prototype.hasOwnProperty.call(state.hidden, id)) continue;
+      var h = state.hidden[id];
+      var closeTs = h ? Number(h.closeTs) || 0 : 0;
+      var hiddenAt = h ? Number(h.hiddenAt) || 0 : 0;
+      // Purge if auction ended (with 60s grace), or if we don't know closeTs but it's old
+      if(closeTs > 0 && closeTs <= nowSec + 60){
+        delete state.hidden[id];
+        changed = true;
+        continue;
+      }
+      if(closeTs <= 0 && hiddenAt > 0 && (nowSec - hiddenAt) > 7 * 24 * 3600){
+        delete state.hidden[id];
+        changed = true;
+        continue;
+      }
+    }
+    if(changed) saveHidden();
   }
   // bids are always enabled now; toggle removed
   function loadCache(){
@@ -565,6 +610,7 @@
       state.updated = Date.now();
       setBusy(false);
       saveCache();
+      purgeExpiredHidden();
       render();
       loadBids();
     }).catch(function(err){
@@ -591,6 +637,7 @@
       return;
     }
 
+    purgeExpiredHidden();
     updateCounts();
 
     if(state.error){
@@ -816,7 +863,9 @@
     w._suppressClick = true;
     fadeOtherGhosts(w);          // hiding again dismisses any previous ghost
     clearGhostTimer(w);
-    state.hidden[id] = true;
+    var it = findItemById(id);
+    var closeTs = it ? Number(it["Date Closed"]) || 0 : 0;
+    state.hidden[id] = { closeTs: closeTs, hiddenAt: Math.floor(Date.now() / 1000) };
     saveHidden();
     updateCounts();
     var card = w.querySelector(".card");
