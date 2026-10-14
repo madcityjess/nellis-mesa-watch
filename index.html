@@ -90,6 +90,8 @@
   .exact{display:flex;align-items:flex-start;gap:9px;margin-top:13px;font-size:13px;color:var(--ink);cursor:pointer;line-height:1.35}
   .exact input{width:18px;height:18px;margin-top:2px;accent-color:var(--red);flex:none}
   .exact em{color:var(--muted);font-style:normal;font-size:12px}
+  .card .facts .bid{color:var(--burgundy)}
+  .card .facts .pending{color:var(--muted);font-style:italic}
 
   .results-head{display:flex;justify-content:space-between;align-items:baseline;margin:4px 6px 10px;gap:10px}
   .results-head .count{font-weight:800;font-size:15px}
@@ -194,10 +196,14 @@
   var LS_TERMS  = "nmw.terms.v1";   // legacy flat list, migrated on load
   var LS_CACHE  = "nmw.cache.v1";
   var LS_EXACT  = "nmw.exact.v1";
+  // LS_BIDS removed; bids are always enabled
 
   var state = {
     groups: loadGroups(),
     exact: loadExact(),
+    bids: true,
+    bidsLoading: false,
+    bidsRun: 0,
     items: [],
     updated: null,
     busy: false,
@@ -260,6 +266,7 @@
   function saveExact(){
     try{ localStorage.setItem(LS_EXACT, state.exact ? "1" : "0"); }catch(e){}
   }
+  // bids are always enabled now; toggle removed
   function loadCache(){
     try{
       var raw = localStorage.getItem(LS_CACHE);
@@ -362,6 +369,100 @@
 
   function creds(){ return { appId: CONFIG.appId, apiKey: CONFIG.apiKey, index: CONFIG.index }; }
 
+  /* ---------- live bid lookup ----------
+     Nellis marks "Current Bid" / "Total Bids" as unretrievable, so the API never returns their
+     values. But they ARE usable as numeric filters, so we recover each value by binary search:
+     "Current Bid >= X" present? That is a real read of data shown publicly on the item page. */
+  function limiter(max){
+    var active = 0, queue = [];
+    function pump(){
+      while(active < max && queue.length){
+        active++;
+        (function(job){
+          job.fn().then(job.resolve, job.reject).then(function(){ active--; pump(); });
+        })(queue.shift());
+      }
+    }
+    return function(fn){ return new Promise(function(resolve, reject){ queue.push({fn:fn, resolve:resolve, reject:reject}); pump(); }); };
+  }
+  var bidGate = limiter(8);
+  var recovering = null;
+  function recoverOnce(){
+    if(!recovering){
+      recovering = recoverCreds().then(function(ok){ recovering = null; return ok; }, function(){ recovering = null; return false; });
+    }
+    return recovering;
+  }
+  function existsById(id, expr){
+    return bidGate(function(){
+      function attempt(c){
+        return fetch("https://" + c.appId + "-dsn.algolia.net/1/indexes/" + c.index + "/query", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Algolia-API-Key": c.apiKey,
+            "X-Algolia-Application-Id": c.appId
+          },
+          body: JSON.stringify({
+            query: "", hitsPerPage: 1, filters: "objectID:" + id,
+            numericFilters: [expr], attributesToRetrieve: ["objectID"]
+          })
+        }).then(function(res){
+          if(res.status === 401 || res.status === 403){
+            return recoverOnce().then(function(ok){ if(!ok) throw new Error("auth"); return attempt(creds()); });
+          }
+          if(!res.ok) throw new Error("bid query failed (" + res.status + ")");
+          return res.json();
+        });
+      }
+      return attempt(creds()).then(function(d){ return (d.hits || []).length > 0; });
+    });
+  }
+  // Largest integer V (0..limit) such that "attr >= V" is true, via exponential + binary search.
+  function bidValue(id, attr, limit){
+    return existsById(id, attr + " >= 1").then(function(any){
+      if(!any) return 0;
+      var lo = 1, hi = 2;
+      function grow(){
+        if(hi >= limit) return Promise.resolve();
+        return existsById(id, attr + " >= " + hi).then(function(ok){
+          if(ok){ lo = hi; hi = Math.min(hi * 2, limit); return grow(); }
+        });
+      }
+      return grow().then(function(){
+        function shrink(){
+          if(hi - lo <= 1) return lo;
+          var mid = Math.floor((lo + hi) / 2);
+          return existsById(id, attr + " >= " + mid).then(function(ok){
+            if(ok) lo = mid; else hi = mid;
+            return shrink();
+          });
+        }
+        return shrink();
+      });
+    });
+  }
+  function loadBids(){
+    var items = state.items.slice();
+    var run = ++state.bidsRun;
+    if(!items.length){ state.bidsLoading = false; render(); return Promise.resolve(); }
+    state.bidsLoading = true;
+    render();
+    var jobs = items.map(function(it){
+      return bidValue(it.objectID, "Current Bid", 1000000).then(function(p){
+        it._bid = p;
+        if(p < 1){ it._bids = 0; return; }
+        return bidValue(it.objectID, "Total Bids", 100000).then(function(b){ it._bids = b; });
+      }).catch(function(){ /* leave unknown on failure */ });
+    });
+    return Promise.all(jobs).then(function(){
+      if(run !== state.bidsRun) return;   // superseded by a newer load/refresh
+      state.bidsLoading = false;
+      saveCache();
+      render();
+    });
+  }
+
   /* ---------- fetch & merge ---------- */
   function refresh(){
     if(state.busy) return;
@@ -396,6 +497,7 @@
       setBusy(false);
       saveCache();
       render();
+      loadBids();
     }).catch(function(err){
       setBusy(false);
       state.error = err && err.message ? err.message : "Something went wrong.";
@@ -476,7 +578,9 @@
 
   function renderStatus(){
     var t = state.updated ? new Date(state.updated) : null;
-    el.lastUpdated.textContent = t ? ("updated " + t.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})) : "never updated";
+    var text = t ? ("updated " + t.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})) : "never updated";
+    if(state.bidsLoading) text += " · fetching bids…";
+    el.lastUpdated.textContent = text;
   }
 
   function cardHTML(it){
@@ -496,6 +600,18 @@
 
     var facts = [];
     if(brand) facts.push("<span>Brand <b>" + esc(brand) + "</b></span>");
+    if(it._bid != null){
+      if(it._bid < 1){
+        facts.push('<span class="pending">No bids yet</span>');
+      } else {
+        facts.push('<span>Current bid <b class="bid">$' + esc(fmtMoney(it._bid)) + "</b></span>");
+        if(it._bids != null && it._bids > 0){
+          facts.push("<span><b>" + esc(it._bids) + "</b> " + (it._bids === 1 ? "bid" : "bids") + "</span>");
+        }
+      }
+    } else if(state.bidsLoading){
+      facts.push('<span class="pending">bid …</span>');
+    }
     if(retail != null) facts.push("<span>Est. retail <b>$" + esc(fmtMoney(retail)) + "</b></span>");
 
     return '<a class="card" href="https://www.nellisauction.com/p/-/' + encodeURIComponent(id) +

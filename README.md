@@ -7,7 +7,7 @@ A tiny installable web app (PWA) that shows your saved auction search terms filt
 
 - Runs entirely in your phone's browser — **no server, no crawler, no PC**.
 - Queries Nellis's public Algolia search index live each time you open/refresh, so results are current.
-- Only still-open auctions, sorted **ending soonest**. Estimated retail shown (live bid price isn't public).
+- Only still-open auctions, sorted **ending soonest**. Shows **current bid, bid count**, and estimated retail.
 - Tap any card to open that item on nellisauction.com.
 
 ## Files
@@ -70,8 +70,7 @@ their website. If that fails, the fix is a one-line update in `index.html` (`CON
 
 ## Limitations
 
-- **Current bid price / bid count are not public** (Nellis's price API requires a login), so only
-  *estimated retail* is shown. The auction **end time** is shown instead, which matters more for not missing items.
+- **Current bid / bid count**: we recover them directly from the public search index (via a filter-based binary search), since they're stored as sortable-but-unreturned fields. They update on refresh. The auction **end time** is also shown.
 - **Item descriptions are not searchable** — Nellis doesn't put them in the search index (their own
   site search can't find them either), and the description page can't be read from the browser. So
   searches match the **title, brand and category** only. To catch more, add related words (see above).
