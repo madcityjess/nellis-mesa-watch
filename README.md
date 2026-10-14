@@ -3,6 +3,8 @@
 A tiny installable web app (PWA) that shows your saved auction search terms filtered to the
 **Mesa** location on [nellisauction.com](https://www.nellisauction.com), refreshed on demand.
 
+**Live app:** https://madcityjess.github.io/nellis-mesa-watch/
+
 - Runs entirely in your phone's browser — **no server, no crawler, no PC**.
 - Queries Nellis's public Algolia search index live each time you open/refresh, so results are current.
 - Only still-open auctions, sorted **ending soonest**. Estimated retail shown (live bid price isn't public).
