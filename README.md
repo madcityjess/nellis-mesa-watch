@@ -46,6 +46,10 @@ Everything works, but you won't get the "install as app" behaviour and updates r
 
 - **Refresh** button re-queries live.
 - **Search terms** box: add/remove terms (e.g. `Milwaukee`, `Raspberry Pi`). Saved on the phone.
+- **Related words:** put commas in one entry to search several related words at once —
+  e.g. `lathe, faceplate, chuck`. They're grouped under the first word (the label), so results
+  are tagged `LATHE` even when they matched `faceplate` or `chuck`. Adding `lathe, faceplate`
+  when a `lathe` entry already exists merges the new words into it.
 - **Exact matches only** (on by default): a term must appear as a real word in the item's
   title or brand. Turn it off to search exactly like the Nellis site (which uses fuzzy/typo matching,
   so `lathe` also returns *leather* items).
@@ -68,4 +72,7 @@ their website. If that fails, the fix is a one-line update in `index.html` (`CON
 
 - **Current bid price / bid count are not public** (Nellis's price API requires a login), so only
   *estimated retail* is shown. The auction **end time** is shown instead, which matters more for not missing items.
+- **Item descriptions are not searchable** — Nellis doesn't put them in the search index (their own
+  site search can't find them either), and the description page can't be read from the browser. So
+  searches match the **title, brand and category** only. To catch more, add related words (see above).
 - Results show up to 50 items per term (the soonest-ending ones).

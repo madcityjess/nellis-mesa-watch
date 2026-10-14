@@ -73,6 +73,9 @@
   }
   .chip button{border:0;background:transparent;color:var(--burgundy);font-size:15px;line-height:1;padding:0 1px;opacity:.7}
   .chip button:hover{opacity:1}
+  .group{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;background:#faf7f7;border:1px dashed #e4cfcf;border-radius:14px;padding:4px}
+  .chip.sub{background:#fffdfd;color:#8a5a5a;border-color:#ecdada;font-size:12px;font-weight:600;padding:5px 9px}
+  .chip.sub button{color:#8a5a5a}
   .addterm{display:flex;gap:8px;margin-top:10px}
   .addterm input{
     flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#fafaf9;
@@ -82,6 +85,8 @@
     border:0;border-radius:10px;background:var(--red);color:#fff;font-weight:800;padding:0 16px;
   }
   .addterm button:active{background:var(--red-light)}
+  .addhint{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.4}
+  .addhint b{color:var(--ink)}
   .exact{display:flex;align-items:flex-start;gap:9px;margin-top:13px;font-size:13px;color:var(--ink);cursor:pointer;line-height:1.35}
   .exact input{width:18px;height:18px;margin-top:2px;accent-color:var(--red);flex:none}
   .exact em{color:var(--muted);font-style:normal;font-size:12px}
@@ -150,9 +155,10 @@
     <h2>Search terms</h2>
     <div class="chips" id="termChips"></div>
     <form class="addterm" id="addTermForm">
-      <input id="termInput" type="text" placeholder="Add a term (e.g. Milwaukee)" autocomplete="off" autocapitalize="words" enterkeyhint="done">
+      <input id="termInput" type="text" placeholder="Add a term (e.g. lathe)" autocomplete="off" autocapitalize="words" enterkeyhint="done">
       <button type="submit">Add</button>
     </form>
+    <div class="addhint">Tip: separate related words with commas — e.g. <b>lathe, faceplate, chuck</b> — to widen a search.</div>
     <label class="exact">
       <input type="checkbox" id="exactToggle">
       <span><b>Exact matches only</b><br><em>Hides fuzzy results (e.g. “leather” for “lathe”). Turn off to search like the Nellis site does.</em></span>
@@ -177,16 +183,20 @@
     apiKey: "d22f83c614aa8eda28fa9eadda0d07b9",
     index: "nellisauction-prd",
     location: "Mesa",
-    defaultTerms: ["Esp32", "DeWalt"],
+    defaultGroups: [
+      { label: "Esp32", terms: ["Esp32"] },
+      { label: "DeWalt", terms: ["DeWalt"] }
+    ],
     hitsPerPage: 50
   };
 
-  var LS_TERMS = "nmw.terms.v1";
-  var LS_CACHE = "nmw.cache.v1";
-  var LS_EXACT = "nmw.exact.v1";
+  var LS_GROUPS = "nmw.groups.v1";
+  var LS_TERMS  = "nmw.terms.v1";   // legacy flat list, migrated on load
+  var LS_CACHE  = "nmw.cache.v1";
+  var LS_EXACT  = "nmw.exact.v1";
 
   var state = {
-    terms: loadTerms(),
+    groups: loadGroups(),
     exact: loadExact(),
     items: [],
     updated: null,
@@ -206,18 +216,39 @@
   };
 
   /* ---------- persistence ---------- */
-  function loadTerms(){
+  function trimStr(s){ return String(s == null ? "" : s).trim(); }
+  function normGroup(g){
+    if(!g) return null;
+    var terms = (Array.isArray(g.terms) ? g.terms : []).map(trimStr).filter(Boolean);
+    var label = trimStr(g.label) || terms[0];
+    if(!label) return null;
+    if(!terms.length) terms = [label];
+    if(terms.indexOf(label) === -1) terms.unshift(label);
+    return { label: label, terms: terms };
+  }
+  function loadGroups(){
     try{
-      var raw = localStorage.getItem(LS_TERMS);
+      var raw = localStorage.getItem(LS_GROUPS);
       if(raw){
-        var arr = JSON.parse(raw);
-        if(Array.isArray(arr) && arr.length) return arr.map(String).filter(Boolean);
+        var g = JSON.parse(raw);
+        if(Array.isArray(g)){
+          var clean = g.map(normGroup).filter(Boolean);
+          if(clean.length) return clean;
+        }
+      }
+      // migrate the older flat list of terms (one term per entry)
+      var old = localStorage.getItem(LS_TERMS);
+      if(old){
+        var arr = JSON.parse(old);
+        if(Array.isArray(arr) && arr.length){
+          return arr.map(trimStr).filter(Boolean).map(function(t){ return { label: t, terms: [t] }; });
+        }
       }
     }catch(e){}
-    return CONFIG.defaultTerms.slice();
+    return CONFIG.defaultGroups.map(function(g){ return { label: g.label, terms: g.terms.slice() }; });
   }
-  function saveTerms(){
-    try{ localStorage.setItem(LS_TERMS, JSON.stringify(state.terms)); }catch(e){}
+  function saveGroups(){
+    try{ localStorage.setItem(LS_GROUPS, JSON.stringify(state.groups)); }catch(e){}
   }
   function loadExact(){
     try{
@@ -285,6 +316,19 @@
     });
   }
 
+  // Run one term, recovering credentials once if the key was rotated.
+  function runTerm(term, credsIn){
+    return searchTerm(term, credsIn).catch(function(err){
+      if(err && (err.status === 401 || err.status === 403)){
+        return recoverCreds().then(function(ok){
+          if(!ok) throw err;
+          return searchTerm(term, creds());
+        });
+      }
+      throw err;
+    });
+  }
+
   // Whole-word match (plus simple plurals) against the item title or brand.
   function isExactMatch(item, term){
     var hay = ((item["Lead Description"] || "") + " " + (item["Brand"] || "")).toLowerCase();
@@ -321,22 +365,21 @@
   /* ---------- fetch & merge ---------- */
   function refresh(){
     if(state.busy) return;
-    if(!state.terms.length){ state.items = []; state.error = null; render(); return; }
+    if(!state.groups.length){ state.items = []; state.error = null; render(); return; }
 
     setBusy(true);
     state.error = null;
     render();
 
     var activeCreds = creds();
-    var jobs = state.terms.map(function(t){
-      return searchTerm(t, activeCreds).catch(function(err){
-        if(err && (err.status === 401 || err.status === 403)){
-          return recoverCreds().then(function(ok){
-            if(!ok) throw err;
-            return searchTerm(t, creds());
-          });
-        }
-        throw err;
+    var jobs = [];
+    state.groups.forEach(function(g){
+      g.terms.forEach(function(t){
+        jobs.push(
+          runTerm(t, activeCreds).then(function(list){
+            return list.map(function(h){ h._group = g.label; return h; });
+          })
+        );
       });
     });
 
@@ -398,15 +441,33 @@
   }
 
   function renderChips(){
-    el.chips.innerHTML = state.terms.map(function(t, i){
-      return '<span class="chip">' + esc(t) + '<button type="button" data-i="' + i +
-        '" aria-label="Remove ' + esc(t) + '">×</button></span>';
-    }).join("") || '<span style="color:var(--muted);font-size:13px">No terms yet — add one below.</span>';
+    if(!state.groups.length){
+      el.chips.innerHTML = '<span style="color:var(--muted);font-size:13px">No terms yet — add one below.</span>';
+      return;
+    }
+    el.chips.innerHTML = state.groups.map(function(g, gi){
+      var main = '<span class="chip main">' + esc(g.label) +
+        '<button type="button" data-group="' + gi + '" data-term="-1" aria-label="Remove ' + esc(g.label) +
+        '" title="Remove entire group">×</button></span>';
+      var rel = g.terms.map(function(t, ti){
+        if(ti === 0) return "";
+        return '<span class="chip sub">' + esc(t) +
+          '<button type="button" data-group="' + gi + '" data-term="' + ti + '" aria-label="Remove ' + esc(t) + '">×</button></span>';
+      }).join("");
+      return '<span class="group">' + main + rel + "</span>";
+    }).join("");
 
-    Array.prototype.forEach.call(el.chips.querySelectorAll("button[data-i]"), function(btn){
+    Array.prototype.forEach.call(el.chips.querySelectorAll("button[data-group]"), function(btn){
       btn.addEventListener("click", function(){
-        state.terms.splice(parseInt(btn.getAttribute("data-i"), 10), 1);
-        saveTerms();
+        var gi = parseInt(btn.getAttribute("data-group"), 10);
+        var ti = parseInt(btn.getAttribute("data-term"), 10);
+        if(ti < 0){
+          state.groups.splice(gi, 1);
+        } else {
+          state.groups[gi].terms.splice(ti, 1);
+          if(!state.groups[gi].terms.length) state.groups.splice(gi, 1);
+        }
+        saveGroups();
         render();
         refresh();
       });
@@ -430,7 +491,7 @@
 
     var condClass = cond === "New" ? "cond-new" : "cond-used";
 
-    var tags = '<span class="tag term">' + esc(it._term || "") + "</span>";
+    var tags = '<span class="tag term">' + esc(it._group || it._term || "") + "</span>";
     if(cond) tags += '<span class="tag ' + condClass + '">' + esc(cond) + "</span>";
 
     var facts = [];
@@ -499,10 +560,20 @@
   });
   el.form.addEventListener("submit", function(e){
     e.preventDefault();
-    var v = el.input.value.trim();
-    if(!v) return;
-    var exists = state.terms.some(function(t){ return t.toLowerCase() === v.toLowerCase(); });
-    if(!exists){ state.terms.push(v); saveTerms(); }
+    var raw = el.input.value.trim();
+    if(!raw) return;
+    var terms = raw.split(",").map(trimStr).filter(Boolean);
+    if(!terms.length) return;
+    var label = terms[0];
+    var existing = state.groups.filter(function(g){ return g.label.toLowerCase() === label.toLowerCase(); })[0];
+    if(existing){
+      var have = existing.terms.map(function(t){ return t.toLowerCase(); });
+      terms.forEach(function(t){ if(have.indexOf(t.toLowerCase()) === -1){ existing.terms.push(t); have.push(t.toLowerCase()); } });
+      saveGroups();
+    } else {
+      state.groups.push({ label: label, terms: terms });
+      saveGroups();
+    }
     el.input.value = "";
     render();
     refresh();
